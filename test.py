@@ -1,17 +1,17 @@
 import sys
 import json
 import os
-from PyQt5.QtWidgets import (
+from PyQt5.QtWidgets import ( # type: ignore
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLineEdit, QPushButton, QTableWidget, QTableWidgetItem,
     QHeaderView, QSystemTrayIcon, QMenu, QAction, QMessageBox,
-    QLabel, QSizePolicy, QTabWidget, QStyle, QInputDialog
+    QLabel, QSizePolicy, QTabWidget, QStyle, QInputDialog, QSplitter, QListWidget, QStackedWidget
 )
-from PyQt5.QtGui import QIcon, QDesktopServices, QMouseEvent
-from PyQt5.QtCore import QUrl, Qt, QPoint, pyqtSignal
+from PyQt5.QtGui import QIcon, QDesktopServices, QMouseEvent # type: ignore
+from PyQt5.QtCore import QUrl, Qt, QPoint, pyqtSignal # type: ignore
 
-# --- Cấu hình ---
-ALL_BOOKMARKS_FILE = 'categories.json' # File JSON mới để lưu tất cả dữ liệu
+# --- Configuration ---
+COLLECTIONS_FILE = 'collections.json' # JSON file to store all data
 APP_ICON_PATH = 'assets/icon.png' 
 MINIMIZE_ICON_PATH = 'assets/minimize_icon.png'
 MAXIMIZE_ICON_PATH = 'assets/maximize_icon.png'
@@ -49,7 +49,7 @@ class CustomTitleBar(QWidget):
         else:
             self.app_icon_label = None
 
-        self.title_label = QLabel("Bookmark Manager")
+        self.title_label = QLabel("OwMarker")
         self.title_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         if self.app_icon_label is None:
             self.title_label.setContentsMargins(10, 0, 0, 0)
@@ -149,25 +149,25 @@ class CustomTitleBar(QWidget):
 
 #Main Window
 class BookmarkManagerApp(QMainWindow):
-    show_window_and_add_bookmark_signal = pyqtSignal()
-    show_window_and_add_category_signal = pyqtSignal()
+    show_window_and_add_note_signal = pyqtSignal()
+    show_window_and_add_collection_signal = pyqtSignal()
 
     def __init__(self):
         super().__init__()
-        self.categories_data = {} 
-        self.category_widgets = {} 
+        self.collections_data = {} 
+        self.collection_widgets = {} 
 
-        self.load_all_bookmarks()
+        self.load_collections()
 
         self.init_ui()
         self.init_tray_icon()
-        self.apply_modern_theme() # <-- HÀM apply_modern_theme() ĐƯỢC GỌI Ở ĐÂY
-        self.populate_all_tables()
+        self.apply_modern_theme() # <-- apply_modern_theme() is called here
+        self.populate_all_collection_pages()
         
         self.title_bar.update_max_restore_icon(self.isMaximized()) 
 
     def init_ui(self):
-        self.setWindowTitle('Bookmark Manager')
+        self.setWindowTitle('OwMarker')
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowSystemMenuHint | Qt.WindowMinimizeButtonHint | Qt.WindowMaximizeButtonHint | Qt.WindowCloseButtonHint)
         self.setGeometry(100, 100, 900, 700)
 
@@ -185,35 +185,46 @@ class BookmarkManagerApp(QMainWindow):
         self.title_bar.close_requested.connect(self.close)
         main_layout.addWidget(self.title_bar)
 
-        self.tab_widget = QTabWidget()
-        self.tab_widget.setObjectName("bookmark_tab_widget")
-        main_layout.addWidget(self.tab_widget)
-        
-        #Add Category Button 
-        self.add_category_button = QPushButton("+ Add Category")
-        self.add_category_button.setObjectName("add_category_button")
-        self.add_category_button.setFixedSize(120, 30)
-        self.add_category_button.clicked.connect(self.prompt_new_category)
-        
-        add_category_btn_container = QWidget()
-        add_category_btn_layout = QHBoxLayout(add_category_btn_container)
-        add_category_btn_layout.setContentsMargins(0,0,0,0)
-        add_category_btn_layout.addStretch()
-        add_category_btn_layout.addWidget(self.add_category_button)
-        
-        #Add Category Button 
-        main_layout.addWidget(add_category_btn_container) 
+        # Main content splitter
+        main_splitter = QSplitter(Qt.Horizontal)
+        main_splitter.setObjectName("main_splitter")
+        main_layout.addWidget(main_splitter)
+
+        # Left panel for collections
+        left_panel = QWidget()
+        left_panel_layout = QVBoxLayout(left_panel)
+        left_panel_layout.setContentsMargins(10, 10, 5, 10)
+        left_panel_layout.setSpacing(10)
+
+        collection_list_label = QLabel("COLLECTIONS")
+        collection_list_label.setObjectName("collection_list_label")
+        self.collection_list_widget = QListWidget()
+        self.collection_list_widget.setObjectName("collection_list_widget")
+
+        self.add_collection_button = QPushButton("+ Add Collection")
+        self.add_collection_button.setObjectName("add_collection_button")
+        self.add_collection_button.clicked.connect(self.prompt_new_collection)
+
+        left_panel_layout.addWidget(collection_list_label)
+        left_panel_layout.addWidget(self.collection_list_widget)
+        left_panel_layout.addWidget(self.add_collection_button)
+
+        # Right panel for notes (stacked widget)
+        self.stacked_widget = QStackedWidget()
+
+        main_splitter.addWidget(left_panel)
+        main_splitter.addWidget(self.stacked_widget)
+        main_splitter.setSizes([200, 700]) # Initial sizes
 
         self.setCentralWidget(main_widget)
         
-        self.init_category_tabs() 
-
-        self.show_window_and_add_bookmark_signal.connect(self.prompt_add_bookmark)
-        self.show_window_and_add_category_signal.connect(self.prompt_new_category)
-
+        self.init_collection_views() 
+        self.collection_list_widget.currentRowChanged.connect(self.stacked_widget.setCurrentIndex)
+        self.show_window_and_add_note_signal.connect(self.prompt_add_note)
+        self.show_window_and_add_collection_signal.connect(self.prompt_new_collection)
 
     def apply_modern_theme(self):
-        """Áp dụng theme hiện đại (dark theme) cho toàn bộ ứng dụng."""
+        """Apply a modern dark theme to the entire application."""
         self.setStyleSheet("""
             /* Global Styles */
             QMainWindow {
@@ -260,7 +271,7 @@ class BookmarkManagerApp(QMainWindow):
                 background-color: #005A99;
             }
             /* Specific delete button style */
-            QPushButton#delete_button { /* Áp dụng cho các nút có objectName là "delete_button" */
+            QPushButton#delete_button { /* Apply to buttons with objectName "delete_button" */
                 background-color: #CC293D; /* Red for delete */
             }
             QPushButton#delete_button:hover {
@@ -270,23 +281,43 @@ class BookmarkManagerApp(QMainWindow):
                 background-color: #801825;
             }
 
-            /* Nút thêm Category */
-            QPushButton#add_category_button {
-                background-color: #4CAF50; /* Green color for add category */
+            /* Add Collection Button */
+            QPushButton#add_collection_button {
+                background-color: #4CAF50; /* Green color for add collection */
                 color: white;
-                padding: 5px 10px;
-                border-radius: 15px; /* Pill shape */
-                font-size: 12px;
+                padding: 8px 10px;
+                border-radius: 5px;
+                font-size: 13px;
                 font-weight: bold;
-                text-transform: none; /* Không viết hoa */
+                text-transform: none; /* No uppercase */
                 letter-spacing: normal;
-                min-width: 100px;
             }
-            QPushButton#add_category_button:hover {
+            QPushButton#add_collection_button:hover {
                 background-color: #45a049;
             }
-            QPushButton#add_category_button:pressed {
+            QPushButton#add_collection_button:pressed {
                 background-color: #3e8e41;
+            }
+            
+            /* QListWidget - Collections List */
+            QListWidget#collection_list_widget {
+                background-color: #2D2D30;
+                border: 1px solid #3c3c3c;
+                border-radius: 5px;
+                padding: 5px;
+            }
+            QListWidget#collection_list_widget::item {
+                padding: 12px 10px;
+                border-radius: 4px;
+                color: #cccccc;
+            }
+            QListWidget#collection_list_widget::item:hover {
+                background-color: #3c3c3c;
+            }
+            QListWidget#collection_list_widget::item:selected {
+                background-color: #007ACC;
+                color: white;
+                font-weight: 600;
             }
             
             /* QTableWidget - Data Display */
@@ -344,292 +375,290 @@ class BookmarkManagerApp(QMainWindow):
                 background: none;
             }
 
-            /* QTabWidget */
-            QTabWidget::pane { /* The tab content area */
-                border: 1px solid #3c3c3c;
-                background-color: #252526;
-                border-radius: 8px; /* Match window border radius */
-                margin: 0 10px 10px 10px; /* Spacing from edges */
-            }
-            QTabBar::tab {
-                background-color: #3c3c3c;
-                color: #cccccc;
-                padding: 10px 15px;
-                border-top-left-radius: 5px;
-                border-top-right-radius: 5px;
-                margin-right: 2px; /* Space between tabs */
-                border: none; /* Remove default tab border */
-                border-bottom: 2px solid transparent; /* Placeholder for active indicator */
-            }
-            QTabBar::tab:hover {
-                background-color: #444444;
-            }
-            QTabBar::tab:selected {
-                background-color: #252526; /* Match pane background */
-                color: #007ACC; /* Active tab color */
-
-                border-bottom: 2px solid #007ACC; /* Active indicator */
-            }
-            /* Styling cho nội dung bên trong mỗi tab (padding) */
-            QWidget[objectName^="category_tab_content_"] { /* Selects widgets whose name starts with category_tab_content_ */
+            /* Collection Page Content */
+            QWidget[objectName^="collection_page_content_"] {
                 padding: 15px;
+            }
+
+            QLabel#collection_list_label {
+                font-weight: bold;
+                color: #007ACC;
+                font-size: 14px;
+                padding-left: 5px;
+                text-transform: uppercase;
             }
         """)
        
 
 
-    def init_category_tabs(self):
+    def init_collection_views(self):
+        """Initializes the collection list and pages."""
+        self.collection_list_widget.clear()
+        while self.stacked_widget.count() > 0:
+            widget = self.stacked_widget.widget(0)
+            self.stacked_widget.removeWidget(widget)
+            widget.deleteLater()
+        self.collection_widgets.clear()
 
-        while self.tab_widget.count() > 0:
-            self.tab_widget.removeTab(0)
-        self.category_widgets.clear()
+        if not self.collections_data:
+            self.collections_data["General"] = []
+            self.save_collections()
 
-        if not self.categories_data:
-            self.categories_data["General"] = []
-            self.save_all_bookmarks()
-
-        for category_name in sorted(self.categories_data.keys()):
-            self._create_and_add_category_tab(category_name)
+        for collection_name in sorted(self.collections_data.keys()):
+            self._create_and_add_collection_page(collection_name)
         
-        if self.tab_widget.count() > 0:
-            self.tab_widget.setCurrentIndex(0)
+        if self.collection_list_widget.count() > 0:
+            self.collection_list_widget.setCurrentRow(0)
 
-    def _create_and_add_category_tab(self, category_name):
-
-        tab_content_widget = QWidget()
-        tab_content_widget.setObjectName(f"category_tab_content_{category_name.replace(' ', '_')}") 
-        tab_layout = QVBoxLayout(tab_content_widget)
-        tab_layout.setContentsMargins(15, 15, 15, 15)
-        tab_layout.setSpacing(10)
+    def _create_and_add_collection_page(self, collection_name):
+        """Creates the widget for a single collection's content and adds it to the UI."""
+        page_content_widget = QWidget()
+        page_content_widget.setObjectName(f"collection_page_content_{collection_name.replace(' ', '_')}") 
+        page_layout = QVBoxLayout(page_content_widget)
+        page_layout.setContentsMargins(10, 10, 10, 10)
+        page_layout.setSpacing(10)
 
         input_layout = QHBoxLayout()
         input_layout.setSpacing(10)
         
         title_input = QLineEdit()
-        title_input.setPlaceholderText("Bookmark Title")
+        title_input.setPlaceholderText("Note Title")
         url_input = QLineEdit()
-        url_input.setPlaceholderText("Bookmark URL (optional, e.g., https://example.com)")
-        add_button = QPushButton("ADD")
+        url_input.setPlaceholderText("Note URL (e.g., https://example.com)")
+        add_button = QPushButton("ADD NOTE")
         
         add_button.clicked.connect(
-            lambda checked, cat=category_name, t_input=title_input, u_input=url_input: 
-            self.add_bookmark_to_category(cat, t_input, u_input)
+            lambda checked, col=collection_name, t_input=title_input, u_input=url_input: 
+            self.add_note_to_collection(col, t_input, u_input)
         )
 
         input_layout.addWidget(title_input)
         input_layout.addWidget(url_input)
         input_layout.addWidget(add_button)
-        tab_layout.addLayout(input_layout)
+        page_layout.addLayout(input_layout)
 
-        bookmark_table = QTableWidget(self)
-        bookmark_table.setColumnCount(2)
-        bookmark_table.setHorizontalHeaderLabels(["Title", "URL"])
-        bookmark_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-        bookmark_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-        bookmark_table.setEditTriggers(QTableWidget.NoEditTriggers) 
-        bookmark_table.setSelectionBehavior(QTableWidget.SelectRows)
-        bookmark_table.setSelectionMode(QTableWidget.SingleSelection)
+        note_table = QTableWidget(self)
+        note_table.setColumnCount(2)
+        note_table.setHorizontalHeaderLabels(["Title", "URL"])
+        note_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        note_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        note_table.setEditTriggers(QTableWidget.NoEditTriggers) 
+        note_table.setSelectionBehavior(QTableWidget.SelectRows)
+        note_table.setSelectionMode(QTableWidget.SingleSelection)
         
-        bookmark_table.doubleClicked.connect(
-            lambda index, cat=category_name, table=bookmark_table: 
-            self.open_selected_bookmark(cat, table)
+        note_table.doubleClicked.connect(
+            lambda index, col=collection_name, table=note_table: 
+            self.open_selected_note(col, table)
         )
-        tab_layout.addWidget(bookmark_table)
+        page_layout.addWidget(note_table)
 
         action_layout = QHBoxLayout()
         action_layout.setSpacing(10)
 
         open_button = QPushButton("OPEN SELECTED")
         open_button.clicked.connect(
-            lambda checked, cat=category_name, table=bookmark_table: 
-            self.open_selected_bookmark(cat, table)
+            lambda checked, col=collection_name, table=note_table: 
+            self.open_selected_note(col, table)
         )
         delete_button = QPushButton("DELETE SELECTED")
-        delete_button.setObjectName("delete_button") # <-- ĐẶT OBJECT NAME Ở ĐÂY ĐỂ CSS BIẾT
+        delete_button.setObjectName("delete_button") # <-- SET OBJECT NAME HERE FOR CSS
         delete_button.clicked.connect(
-            lambda checked, cat=category_name, table=bookmark_table: 
-            self.delete_selected_bookmark(cat, table)
+            lambda checked, col=collection_name, table=note_table: 
+            self.delete_selected_note(col, table)
         )
         action_layout.addStretch()
         action_layout.addWidget(open_button)
         action_layout.addWidget(delete_button)
-        tab_layout.addLayout(action_layout)
+        page_layout.addLayout(action_layout)
 
-        self.tab_widget.addTab(tab_content_widget, category_name)
+        self.collection_list_widget.addItem(collection_name)
+        self.stacked_widget.addWidget(page_content_widget)
         
-        self.category_widgets[category_name] = {
-            "tab_widget_ref": tab_content_widget,
+        self.collection_widgets[collection_name] = {
+            "page_widget_ref": page_content_widget,
             "title_input": title_input,
             "url_input": url_input,
-            "table": bookmark_table
+            "table": note_table
         }
-        self.populate_category_table(category_name)
+        self.populate_collection_page(collection_name)
 
-    def load_all_bookmarks(self):
-        if os.path.exists(ALL_BOOKMARKS_FILE):
+    def load_collections(self):
+        """Loads all collections and notes from the JSON file."""
+        if os.path.exists(COLLECTIONS_FILE):
             try:
-                with open(ALL_BOOKMARKS_FILE, 'r', encoding='utf-8') as f:
-                    self.categories_data = json.load(f)
+                with open(COLLECTIONS_FILE, 'r', encoding='utf-8') as f:
+                    self.collections_data = json.load(f)
             except json.JSONDecodeError:
-                self.categories_data = {}
-                QMessageBox.warning(self, "Error", f"Could not load bookmarks from {ALL_BOOKMARKS_FILE}. Invalid JSON format.")
+                self.collections_data = {}
+                QMessageBox.warning(self, "Error", f"Could not load notes from {COLLECTIONS_FILE}. Invalid JSON format.")
         else:
-            self.categories_data = {}
-            self.categories_data["General"] = []
-            self.save_all_bookmarks()
+            self.collections_data = {}
+            self.collections_data["General"] = []
+            self.save_collections()
 
-    def save_all_bookmarks(self):
-        """Lưu tất cả bookmark vào file JSON duy nhất."""
-        with open(ALL_BOOKMARKS_FILE, 'w', encoding='utf-8') as f:
-            json.dump(self.categories_data, f, indent=4, ensure_ascii=False)
+    def save_collections(self):
+        """Save all collections and notes to a single JSON file."""
+        with open(COLLECTIONS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(self.collections_data, f, indent=4, ensure_ascii=False)
 
-    def populate_all_tables(self):
-        """Điền dữ liệu vào tất cả các bảng của các category."""
-        for category_name in self.categories_data.keys():
-            self.populate_category_table(category_name)
+    def populate_all_collection_pages(self):
+        """Populate all pages for all collections."""
+        for collection_name in self.collections_data.keys():
+            self.populate_collection_page(collection_name)
 
-    def populate_category_table(self, category_name):
-        """Điền dữ liệu vào bảng của một category cụ thể."""
-        if category_name not in self.category_widgets:
+    def populate_collection_page(self, collection_name):
+        """Populate the table for a specific collection."""
+        if collection_name not in self.collection_widgets:
             return
 
-        table = self.category_widgets[category_name]["table"]
+        table = self.collection_widgets[collection_name]["table"]
         table.setRowCount(0)
 
-        bookmarks_for_category = self.categories_data.get(category_name, [])
+        notes_for_collection = self.collections_data.get(collection_name, [])
 
-        for row_idx, bookmark_item in enumerate(bookmarks_for_category):
+        for row_idx, note_item in enumerate(notes_for_collection):
             table.insertRow(row_idx)
-            table.setItem(row_idx, 0, QTableWidgetItem(bookmark_item.get('title', 'No Title')))
-            table.setItem(row_idx, 1, QTableWidgetItem(bookmark_item.get('url', ''))) 
+            table.setItem(row_idx, 0, QTableWidgetItem(note_item.get('title', 'No Title')))
+            table.setItem(row_idx, 1, QTableWidgetItem(note_item.get('url', ''))) 
 
-    def add_bookmark_to_category(self, category_name, title_input_widget, url_input_widget):
-        """Thêm bookmark vào category được chỉ định."""
+    def add_note_to_collection(self, collection_name, title_input_widget, url_input_widget):
+        """Add a note to the specified collection."""
         title = title_input_widget.text().strip()
         url = url_input_widget.text().strip()
 
         if not title:
-            QMessageBox.warning(self, "Input Error", "Please enter a title for the bookmark.")
+            QMessageBox.warning(self, "Input Error", "Please enter a title for the note.")
             return
 
-        new_bookmark = {'title': title}
+        new_note = {'title': title}
         if url:
             if not url.startswith('http://') and not url.startswith('https://'):
                 url = 'https://' + url
-            new_bookmark['url'] = url
+            new_note['url'] = url
 
-        self.categories_data.setdefault(category_name, []).append(new_bookmark)
-        self.save_all_bookmarks()
-        self.populate_category_table(category_name)
+        self.collections_data.setdefault(collection_name, []).append(new_note)
+        self.save_collections()
+        self.populate_collection_page(collection_name)
         
         title_input_widget.clear()
         url_input_widget.clear()
-        table = self.category_widgets[category_name]["table"]
+        table = self.collection_widgets[collection_name]["table"]
         table.scrollToBottom()
-        table.selectRow(len(self.categories_data[category_name]) - 1)
+        table.selectRow(len(self.collections_data[collection_name]) - 1)
 
-    def delete_selected_bookmark(self, category_name, table_widget):
-        """Xóa bookmark đã chọn từ bảng của category cụ thể."""
+    def delete_selected_note(self, collection_name, table_widget):
+        """Delete the selected note from a specific collection's table."""
         selected_rows = table_widget.selectionModel().selectedRows()
         if not selected_rows:
-            QMessageBox.information(self, "Selection", "Please select a bookmark to delete.")
+            QMessageBox.information(self, "Selection", "Please select a note to delete.")
             return
 
         row_index = selected_rows[0].row()
         
-        bookmark_to_delete = self.categories_data[category_name][row_index]
-        title_to_delete = bookmark_to_delete.get('title', 'Unnamed Bookmark')
+        note_to_delete = self.collections_data[collection_name][row_index]
+        title_to_delete = note_to_delete.get('title', 'Unnamed Note')
 
-        reply = QMessageBox.question(self, 'Delete Bookmark',
-                                     f"Are you sure you want to delete '{title_to_delete}' from '{category_name}'?",
+        reply = QMessageBox.question(self, 'Delete Note',
+                                     f"Are you sure you want to delete '{title_to_delete}' from '{collection_name}'?",
                                      QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
 
         if reply == QMessageBox.Yes:
-            del self.categories_data[category_name][row_index]
-            self.save_all_bookmarks()
-            self.populate_category_table(category_name)
+            del self.collections_data[collection_name][row_index]
+            self.save_collections()
+            self.populate_collection_page(collection_name)
             
-            if not self.categories_data[category_name]:
-                reply_delete_category = QMessageBox.question(self, 'Delete Category',
-                                                             f"Category '{category_name}' is now empty. Do you want to remove this category?",
+            if not self.collections_data[collection_name] and collection_name != "General":
+                reply_delete_collection = QMessageBox.question(self, 'Delete Collection',
+                                                             f"Collection '{collection_name}' is now empty. Do you want to remove this collection?",
                                                              QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
-                if reply_delete_category == QMessageBox.Yes:
-                    self.delete_category(category_name)
+                if reply_delete_collection == QMessageBox.Yes:
+                    self.delete_collection(collection_name)
 
 
-    def open_selected_bookmark(self, category_name, table_widget):
-        """Mở URL của bookmark đã chọn (nếu có)."""
+    def open_selected_note(self, collection_name, table_widget):
+        """Open the URL of the selected note (if available)."""
         selected_rows = table_widget.selectionModel().selectedRows()
         if not selected_rows:
-            QMessageBox.information(self, "Selection", "Please select a bookmark to open.")
+            QMessageBox.information(self, "Selection", "Please select a note to open.")
             return
 
         row_index = selected_rows[0].row()
-        url = self.categories_data[category_name][row_index].get('url')
+        url = self.collections_data[collection_name][row_index].get('url')
         if url:
             QDesktopServices.openUrl(QUrl(url))
         else:
-            QMessageBox.information(self, "No URL", "Selected bookmark does not have an associated URL.")
+            QMessageBox.information(self, "No URL", "Selected note does not have an associated URL.")
 
-    def prompt_new_category(self):
-        """Mở hộp thoại để người dùng nhập tên category mới."""
+    def prompt_new_collection(self):
+        """Open a dialog for the user to enter a new collection name."""
         self.show()
         self.raise_()
         self.activateWindow()
 
-        category_name, ok = QInputDialog.getText(self, "New Category", "Enter new category name:")
-        if ok and category_name:
-            category_name = category_name.strip()
-            if not category_name:
-                QMessageBox.warning(self, "Input Error", "Category name cannot be empty.")
+        collection_name, ok = QInputDialog.getText(self, "New Collection", "Enter new collection name:")
+        if ok and collection_name:
+            collection_name = collection_name.strip()
+            if not collection_name:
+                QMessageBox.warning(self, "Input Error", "Collection name cannot be empty.")
                 return
 
-            if category_name in self.categories_data:
-                QMessageBox.warning(self, "Category Exists", f"Category '{category_name}' already exists.")
+            if collection_name in self.collections_data:
+                QMessageBox.warning(self, "Collection Exists", f"Collection '{collection_name}' already exists.")
             else:
-                self.categories_data[category_name] = []
-                self.save_all_bookmarks()
-                self._create_and_add_category_tab(category_name)
-                self.tab_widget.setCurrentIndex(self.tab_widget.indexOf(self.category_widgets[category_name]["tab_widget_ref"]))
-                QMessageBox.information(self, "Category Added", f"Category '{category_name}' has been added.")
+                self.collections_data[collection_name] = []
+                self.save_collections()
+                self._create_and_add_collection_page(collection_name)
+                
+                items = self.collection_list_widget.findItems(collection_name, Qt.MatchExactly)
+                if items:
+                    self.collection_list_widget.setCurrentItem(items[0])
+                QMessageBox.information(self, "Collection Added", f"Collection '{collection_name}' has been added.")
 
-    def delete_category(self, category_name):
-        """Xóa toàn bộ một category."""
-        if category_name not in self.categories_data:
+    def delete_collection(self, collection_name):
+        """Delete an entire collection."""
+        if collection_name not in self.collections_data or collection_name == "General":
+            QMessageBox.warning(self, "Action Denied", "The 'General' collection cannot be deleted.")
             return
 
-        reply = QMessageBox.question(self, 'Delete Category',
-                                     f"Are you sure you want to delete the entire category '{category_name}' and all its bookmarks?",
+        reply = QMessageBox.question(self, 'Delete Collection',
+                                     f"Are you sure you want to delete the entire collection '{collection_name}' and all its notes?",
                                      QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
 
         if reply == QMessageBox.Yes:
-            tab_index = self.tab_widget.indexOf(self.category_widgets[category_name]["tab_widget_ref"])
-            if tab_index != -1:
-                self.tab_widget.removeTab(tab_index)
+            items = self.collection_list_widget.findItems(collection_name, Qt.MatchExactly)
+            if items:
+                row = self.collection_list_widget.row(items[0])
+                self.collection_list_widget.takeItem(row)
+                widget = self.stacked_widget.widget(row)
+                if widget:
+                    self.stacked_widget.removeWidget(widget)
+                    widget.deleteLater()
             
-            del self.categories_data[category_name]
-            del self.category_widgets[category_name]
+            del self.collections_data[collection_name]
+            del self.collection_widgets[collection_name]
             
-            self.save_all_bookmarks()
-            QMessageBox.information(self, "Category Deleted", f"Category '{category_name}' has been deleted.")
+            self.save_collections()
+            QMessageBox.information(self, "Collection Deleted", f"Collection '{collection_name}' has been deleted.")
             
-            if not self.categories_data:
-                self.categories_data["General"] = []
-                self.save_all_bookmarks()
-                self._create_and_add_category_tab("General")
+            if not self.collections_data:
+                self.collections_data["General"] = []
+                self.save_collections()
+                self._create_and_add_collection_page("General")
 
 
-    def prompt_add_bookmark(self):
-        """Mở hộp thoại để người dùng thêm bookmark vào category hiện tại."""
+    def prompt_add_note(self):
+        """Bring window to front and focus input to add a note to the current collection."""
         self.show()
         self.raise_()
         self.activateWindow()
         
-        current_category_name = self.tab_widget.tabText(self.tab_widget.currentIndex())
-        if current_category_name in self.category_widgets:
-            self.category_widgets[current_category_name]["title_input"].setFocus()
+        current_item = self.collection_list_widget.currentItem()
+        if current_item:
+            current_collection_name = current_item.text()
+            if current_collection_name in self.collection_widgets:
+                self.collection_widgets[current_collection_name]["title_input"].setFocus()
         else:
-            QMessageBox.warning(self, "No Active Category", "Please select or create a category first.")
+            QMessageBox.warning(self, "No Active Collection", "Please select or create a collection first.")
 
 
     # --- Window Control Methods ---
@@ -647,7 +676,7 @@ class BookmarkManagerApp(QMainWindow):
         else:
             self.tray_icon.setIcon(self.style().standardIcon(QStyle.SP_ComputerIcon)) 
         
-        self.tray_icon.setToolTip('Modern Bookmark Manager')
+        self.tray_icon.setToolTip('OwMarker')
 
         tray_menu = QMenu()
 
@@ -655,13 +684,13 @@ class BookmarkManagerApp(QMainWindow):
         show_hide_action.triggered.connect(self.toggle_window_visibility)
         tray_menu.addAction(show_hide_action)
 
-        add_bookmark_action = QAction("Add Bookmark (Current Tab)", self)
-        add_bookmark_action.triggered.connect(self.show_window_and_add_bookmark_signal.emit)
-        tray_menu.addAction(add_bookmark_action)
+        add_note_action = QAction("Add Note (Current Collection)", self)
+        add_note_action.triggered.connect(self.show_window_and_add_note_signal.emit)
+        tray_menu.addAction(add_note_action)
 
-        add_category_action = QAction("Add New Category", self)
-        add_category_action.triggered.connect(self.show_window_and_add_category_signal.emit)
-        tray_menu.addAction(add_category_action)
+        add_collection_action = QAction("Add New Collection", self)
+        add_collection_action.triggered.connect(self.show_window_and_add_collection_signal.emit)
+        tray_menu.addAction(add_collection_action)
 
         tray_menu.addSeparator()
 
@@ -690,8 +719,8 @@ class BookmarkManagerApp(QMainWindow):
             self.hide()
             event.ignore()
             self.tray_icon.showMessage(
-                "Bookmark Manager",
-                "Application minimized to tray. Click icon to restore.",
+                "OwMarker",
+                "Application has been minimized to the system tray.",
                 QSystemTrayIcon.Information,
                 2000
             )
