@@ -1,12 +1,15 @@
 from PySide6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, 
                                QFrame, QListWidget, QPushButton, QLabel, QScrollArea,
-                               QInputDialog, QMessageBox, QMenu)
+                               QInputDialog, QMessageBox, QMenu, QSystemTrayIcon, QSplitter)
 from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve
 from PySide6.QtGui import QAction
 
 from src.styles import MODERN_STYLE
 from src.components import NoteWidget, NoteDialog
 from src.data_manager import DataManager # IMPORT FILE MỚI
+from src.settings_manager import SettingsManager
+from src.tray_manager import TrayManager
+from src.hotkey_manager import HotkeyWorker
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -14,6 +17,9 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Modern Bookmark App")
         self.resize(900, 600)
         self.setStyleSheet(MODERN_STYLE)
+
+        # Khởi tạo Settings Manager
+        self.settings_manager = SettingsManager("settings.json")
 
         # Khởi tạo Data Manager và tải dữ liệu từ file JSON
         self.data_manager = DataManager("bookmarks.json")
@@ -23,10 +29,32 @@ class MainWindow(QMainWindow):
 
         self.init_ui()
         self.load_collections()
+        
+        # Khởi tạo Tray Icon (Chạy ngầm)
+        self.tray_manager = TrayManager(self)
+        self.tray_manager.show()
+        
+        # Khởi tạo Global Hotkeys
+        self.hotkey_manager = HotkeyWorker(self)
+        self.hotkey_manager.hotkey_triggered.connect(self.add_note_from_hotkey)
+        self.hotkey_manager.setup_hotkeys()
 
     def save_current_state(self):
         """Hàm tiện ích: Gọi hàm này mỗi khi có thay đổi dữ liệu để lưu vào file."""
         self.data_manager.save_data(self.db)
+
+    def closeEvent(self, event):
+        if hasattr(self, 'tray_manager') and self.tray_manager.is_quitting:
+            event.accept()
+        else:
+            event.ignore()
+            self.hide()
+            self.tray_manager.showMessage(
+                "Đang chạy ngầm",
+                "Ứng dụng đã thu nhỏ xuống khay hệ thống. Bấm vào icon để mở lại.",
+                QSystemTrayIcon.Information,
+                2000
+            )
 
     def init_ui(self):
         central_widget = QWidget()
@@ -35,14 +63,18 @@ class MainWindow(QMainWindow):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
+        self.splitter = QSplitter(Qt.Horizontal)
+        self.splitter.setHandleWidth(2)
+        self.splitter.setStyleSheet("QSplitter::handle { background-color: #333333; }")
+        main_layout.addWidget(self.splitter)
+
         # --- SIDEBAR ---
         self.sidebar = QFrame()
         self.sidebar.setObjectName("sidebar")
-        self.sidebar.setMaximumWidth(200)
         sidebar_layout = QVBoxLayout(self.sidebar)
         
         sidebar_header = QHBoxLayout()
-        lbl_logo = QLabel("📚 Collections")
+        lbl_logo = QLabel("Collections")
         lbl_logo.setStyleSheet("color: white; font-size: 16px; font-weight: bold;")
         
         self.btn_add_collection = QPushButton("+")
@@ -96,20 +128,32 @@ class MainWindow(QMainWindow):
         content_layout.addLayout(top_bar)
         content_layout.addWidget(self.scroll_area)
 
-        main_layout.addWidget(self.sidebar)
-        main_layout.addWidget(self.main_content)
+        self.splitter.addWidget(self.sidebar)
+        self.splitter.addWidget(self.main_content)
+        
+        self.splitter.setSizes([200, 700])
 
         self.animation = QPropertyAnimation(self.sidebar, b"maximumWidth")
         self.animation.setDuration(300)
         self.animation.setEasingCurve(QEasingCurve.InOutQuart)
+        self.animation.finished.connect(self.on_menu_animation_finished)
 
     # --- LOGIC CHO SIDEBAR / MENU ---
     def toggle_menu(self):
         start_val = self.sidebar.width()
-        end_val = 0 if start_val > 0 else 200
+        if start_val > 0:
+            self.sidebar_last_width = start_val
+            end_val = 0
+        else:
+            end_val = getattr(self, 'sidebar_last_width', 200)
+            
         self.animation.setStartValue(start_val)
         self.animation.setEndValue(end_val)
         self.animation.start()
+        
+    def on_menu_animation_finished(self):
+        if self.sidebar.width() > 0:
+            self.sidebar.setMaximumWidth(16777215)
 
     def load_collections(self):
         self.collection_list.clear()
@@ -120,8 +164,9 @@ class MainWindow(QMainWindow):
         self.lbl_title.setText(self.current_collection)
         self.btn_add.show()
         self.render_notes()
+        
+        self.settings_manager.add_recent_collection(self.current_collection)
 
-    # --- LOGIC THÊM, SỬA, XÓA COLLECTION ---
     def add_collection(self):
         text, ok = QInputDialog.getText(self, "Thêm Collection", "Nhập tên Collection mới:")
         if ok and text:
@@ -138,13 +183,16 @@ class MainWindow(QMainWindow):
         if not item: return
 
         menu = QMenu(self)
-        menu.setStyleSheet("QMenu { background-color: #313244; color: white; border-radius: 5px; } QMenu::item:selected { background-color: #89b4fa; color: black; }")
+        menu.setStyleSheet("QMenu { background-color: #252525; color: #e0e0e0; border: none; border-radius: 5px; padding: 4px; } QMenu::item { padding: 6px 20px; border-radius: 4px; } QMenu::item:selected { background-color: #444444; color: white; }")
         
         rename_action = QAction("Đổi tên", self)
         delete_action = QAction("Xóa", self)
+        hotkey_action = QAction("Cài đặt phím tắt...", self)
         
         menu.addAction(rename_action)
         menu.addAction(delete_action)
+        menu.addSeparator()
+        menu.addAction(hotkey_action)
 
         action = menu.exec(self.collection_list.mapToGlobal(pos))
         
@@ -152,6 +200,8 @@ class MainWindow(QMainWindow):
             self.rename_collection(item)
         elif action == delete_action:
             self.delete_collection(item)
+        elif action == hotkey_action:
+            self.set_collection_hotkey(item)
 
     def rename_collection(self, item):
         old_name = item.text()
@@ -168,6 +218,16 @@ class MainWindow(QMainWindow):
             if self.current_collection == old_name:
                 self.current_collection = new_name
                 self.lbl_title.setText(new_name)
+            
+            recent = self.settings_manager.get_recent_collections()
+            if old_name in recent:
+                recent[recent.index(old_name)] = new_name
+                self.settings_manager.save_settings()
+            hotkeys = self.settings_manager.get_hotkeys()
+            if old_name in hotkeys:
+                hotkeys[new_name] = hotkeys.pop(old_name)
+                self.settings_manager.save_settings()
+                self.hotkey_manager.setup_hotkeys()
             
             self.save_current_state() # LƯU DATA
             self.load_collections()
@@ -187,8 +247,40 @@ class MainWindow(QMainWindow):
                     widget = self.notes_layout.itemAt(i).widget()
                     if widget: widget.deleteLater()
             
+            self.settings_manager.remove_collection_data(col_name)
+            self.hotkey_manager.setup_hotkeys()
+            
             self.save_current_state() # LƯU DATA
             self.load_collections()
+
+    def set_collection_hotkey(self, item):
+        col_name = item.text()
+        current_hotkey = self.settings_manager.get_hotkeys().get(col_name, "")
+        text, ok = QInputDialog.getText(self, "Cài đặt phím tắt", 
+                                        f"Nhập phím tắt bôi đen lưu text cho '{col_name}'\n(VD: ctrl+shift+a, để trống để hủy):", 
+                                        text=current_hotkey)
+        if ok:
+            self.settings_manager.set_hotkey(col_name, text.strip())
+            self.hotkey_manager.setup_hotkeys()
+            if text.strip():
+                QMessageBox.information(self, "Thành công", f"Đã cài phím tắt '{text.strip()}' cho {col_name}")
+            else:
+                QMessageBox.information(self, "Thành công", f"Đã xóa phím tắt cho {col_name}")
+
+    def add_note_from_hotkey(self, collection_name, selected_text):
+        if not selected_text: return
+        link = ""
+        note = selected_text
+        if note.startswith("http://") or note.startswith("https://"):
+            link = note
+            note = "Đã lưu từ phím tắt"
+            
+        self.db[collection_name].append({"note": note, "link": link})
+        self.save_current_state()
+        if self.current_collection == collection_name:
+            self.render_notes()
+        self.settings_manager.add_recent_collection(collection_name)
+        self.tray_manager.showMessage("Đã thêm Note", f"Đã lưu nội dung bôi đen vào '{collection_name}'", QSystemTrayIcon.Information, 2000)
 
     # --- LOGIC CHO NOTES ---
     def render_notes(self):
@@ -210,15 +302,15 @@ class MainWindow(QMainWindow):
             note, link = dialog.get_data()
             if note or link:
                 self.db[self.current_collection].append({"note": note, "link": link})
-                self.save_current_state() # LƯU DATA
+                self.save_current_state() 
                 self.render_notes()
 
     def delete_note(self, widget):
         del self.db[self.current_collection][widget.index_in_db]
-        self.save_current_state() # LƯU DATA
+        self.save_current_state() 
         self.render_notes()
 
     def edit_note(self, widget, new_note, new_link):
         self.db[self.current_collection][widget.index_in_db] = {"note": new_note, "link": new_link}
-        self.save_current_state() # LƯU DATA
+        self.save_current_state() 
         self.render_notes()
