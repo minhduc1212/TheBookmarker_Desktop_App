@@ -5,7 +5,6 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QCursor, QAction
 
 class NoteDialog(QDialog):
-    """Hộp thoại để Thêm hoặc Sửa Note"""
     def __init__(self, parent=None, note_text="", link=""):
         super().__init__(parent)
         self.setWindowTitle("Note Details")
@@ -29,7 +28,6 @@ class NoteDialog(QDialog):
         return self.note_input.text().strip(), self.link_input.text().strip()
 
 class NoteWidget(QFrame):
-    """Widget hiển thị từng Note"""
     deleted = Signal(object) 
     edited = Signal(object, str, str) 
 

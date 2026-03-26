@@ -30,11 +30,10 @@ class MainWindow(QMainWindow):
         self.init_ui()
         self.load_collections()
         
-        # Khởi tạo Tray Icon (Chạy ngầm)
+      
         self.tray_manager = TrayManager(self)
         self.tray_manager.show()
         
-        # Khởi tạo Global Hotkeys
         self.hotkey_manager = HotkeyWorker(self)
         self.hotkey_manager.hotkey_triggered.connect(self.add_note_from_hotkey)
         self.hotkey_manager.setup_hotkeys()
