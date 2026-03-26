@@ -10,7 +10,7 @@ class NoteDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Note Details")
         self.setFixedSize(350, 150)
-        self.setStyleSheet("background-color: #1e1e2e; color: white;")
+        self.setStyleSheet("background-color: #202020; color: white;")
         
         self.note_input = QLineEdit(note_text)
         self.note_input.setPlaceholderText("Nhập nội dung note...")
@@ -30,8 +30,8 @@ class NoteDialog(QDialog):
 
 class NoteWidget(QFrame):
     """Widget hiển thị từng Note"""
-    deleted = Signal(object) # Gửi tín hiệu khi bị xóa
-    edited = Signal(object, str, str) # Gửi tín hiệu (self, note_mới, link_mới)
+    deleted = Signal(object) 
+    edited = Signal(object, str, str) 
 
     def __init__(self, note_text, link):
         super().__init__()
@@ -41,34 +41,31 @@ class NoteWidget(QFrame):
         self.init_ui()
 
     def init_ui(self):
-        # Logic hiển thị: Có note + link -> hiện note. Chỉ có 1 trong 2 -> hiện cái đó.
         display_text = ""
-        if self.note_text and self.link: display_text = f"📄 {self.note_text}"
-        elif self.note_text: display_text = f"📝 {self.note_text}"
-        elif self.link: display_text = f"🔗 {self.link}"
+        if self.note_text and self.link: display_text = f"{self.note_text}"
+        elif self.note_text: display_text = f"{self.note_text}"
+        elif self.link: display_text = f"{self.link}"
         else: display_text = "Empty Note"
 
         self.lbl = QLabel(display_text)
         self.lbl.setWordWrap(True)
-        self.lbl.setStyleSheet("color: #cdd6f4; font-size: 14px; padding: 10px;")
+        self.lbl.setStyleSheet("color: #e0e0e0; font-size: 14px; padding: 10px;")
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.lbl)
 
-        # Đổi con trỏ chuột thành hình bàn tay nếu có link
         if self.link:
             self.setCursor(Qt.PointingHandCursor)
 
     def mousePressEvent(self, event):
-        # Mở link nếu click chuột trái và có chứa link
         if event.button() == Qt.LeftButton and self.link:
             webbrowser.open(self.link)
 
     def contextMenuEvent(self, event):
         # Menu chuột phải
         menu = QMenu(self)
-        menu.setStyleSheet("QMenu { background-color: #313244; color: white; border-radius: 5px; } QMenu::item:selected { background-color: #89b4fa; color: black; }")
+        menu.setStyleSheet("QMenu { background-color: #252525; color: #e0e0e0; border: none; border-radius: 5px; padding: 4px; } QMenu::item { padding: 6px 20px; border-radius: 4px; } QMenu::item:selected { background-color: #444444; color: white; }")
         
         edit_action = QAction("Chỉnh sửa", self)
         delete_action = QAction("Xóa", self)
