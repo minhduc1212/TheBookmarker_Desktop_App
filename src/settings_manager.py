@@ -35,7 +35,7 @@ class SettingsManager:
             self.settings["recent_collections"].remove(collection_name)
         self.settings["recent_collections"].insert(0, collection_name)
         
-        # Giữ lại tối đa 3 collection gần nhất
+        # Keep a maximum of 3 recent collections
         if len(self.settings["recent_collections"]) > 3:
             self.settings["recent_collections"] = self.settings["recent_collections"][:3]
             

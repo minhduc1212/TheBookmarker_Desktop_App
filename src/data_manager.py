@@ -6,29 +6,29 @@ class DataManager:
         self.filename = filename
 
     def load_data(self):
-        """Đọc dữ liệu từ file JSON. Nếu file chưa tồn tại, trả về data mặc định."""
+        """Loads data from a JSON file. If the file doesn't exist, returns default data."""
         if not os.path.exists(self.filename):
-            # Dữ liệu mặc định cho lần đầu tiên mở app
+            # Default data for the first time opening the app
             default_data = {
-                "Hướng dẫn sử dụng": [
-                    {"note": "Bấm dấu + ở Sidebar để tạo Collection mới", "link": ""},
-                    {"note": "Chuột phải vào Collection để Sửa/Xóa", "link": ""},
-                    {"note": "Bấm vào Note chứa link để mở trình duyệt", "link": "https://google.com"}
+                "User Guide": [
+                    {"note": "Click the + button in the sidebar to create a new Collection", "link": ""},
+                    {"note": "Right-click on a Collection to Edit/Delete", "link": ""},
+                    {"note": "Click on a Note with a link to open it in the browser", "link": "https://google.com"}
                 ]
             }
             self.save_data(default_data)
             return default_data
             
-        # Nếu file đã tồn tại, đọc và trả về data
+        # If the file exists, read and return the data
         with open(self.filename, 'r', encoding='utf-8') as file:
             try:
                 return json.load(file)
             except json.JSONDecodeError:
-                return {} # Trả về dict rỗng nếu file lỗi
+                return {} # Return an empty dict if the file is corrupted
 
     def save_data(self, data):
-        """Lưu toàn bộ data (dictionary) xuống file JSON."""
+        """Saves the entire data (dictionary) to a JSON file."""
         with open(self.filename, 'w', encoding='utf-8') as file:
-            # indent=4 giúp file json được format đẹp mắt, dễ đọc bằng mắt thường
-            # ensure_ascii=False giúp lưu được tiếng Việt có dấu
+            # indent=4 makes the JSON file nicely formatted and human-readable
+            # ensure_ascii=False allows saving of non-ASCII characters
             json.dump(data, file, indent=4, ensure_ascii=False)

@@ -8,21 +8,48 @@ class NoteDialog(QDialog):
     def __init__(self, parent=None, note_text="", link=""):
         super().__init__(parent)
         self.setWindowTitle("Note Details")
-        self.setFixedSize(350, 150)
-        self.setStyleSheet("background-color: #202020; color: white;")
+        self.setFixedSize(350, 170)
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #202020;
+                border: none;
+            }
+            QLabel {
+                color: white;
+            }
+            QLineEdit {
+                background-color: #333333;
+                border: none;
+                color: #e0e0e0;
+                border-radius: 5px;
+                padding: 8px;
+            }
+            QPushButton {
+                background-color: #202020;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                padding: 8px 15px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #333333;
+            }
+        """)
         
         self.note_input = QLineEdit(note_text)
-        self.note_input.setPlaceholderText("Nhập nội dung note...")
+        self.note_input.setPlaceholderText("Enter note content...")
         self.link_input = QLineEdit(link)
         self.link_input.setPlaceholderText("https://...")
 
-        btn_save = QPushButton("Lưu")
+        btn_save = QPushButton("Save")
         btn_save.clicked.connect(self.accept)
 
         layout = QFormLayout(self)
-        layout.addRow("Nội dung:", self.note_input)
-        layout.addRow("Đường dẫn:", self.link_input)
+        layout.addRow("Content:", self.note_input)
+        layout.addRow("Link:", self.link_input)
         layout.addRow("", btn_save)
+        layout.setSpacing(10)
 
     def get_data(self):
         return self.note_input.text().strip(), self.link_input.text().strip()
@@ -61,12 +88,12 @@ class NoteWidget(QFrame):
             webbrowser.open(self.link)
 
     def contextMenuEvent(self, event):
-        # Menu chuột phải
+        # Right-click menu
         menu = QMenu(self)
         menu.setStyleSheet("QMenu { background-color: #252525; color: #e0e0e0; border: none; border-radius: 5px; padding: 4px; } QMenu::item { padding: 6px 20px; border-radius: 4px; } QMenu::item:selected { background-color: #444444; color: white; }")
         
-        edit_action = QAction("Chỉnh sửa", self)
-        delete_action = QAction("Xóa", self)
+        edit_action = QAction("Edit", self)
+        delete_action = QAction("Delete", self)
         
         menu.addAction(edit_action)
         menu.addAction(delete_action)

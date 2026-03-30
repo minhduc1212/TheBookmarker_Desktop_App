@@ -18,10 +18,10 @@ class MainWindow(QMainWindow):
         self.resize(900, 600)
         self.setStyleSheet(MODERN_STYLE)
 
-        # Khởi tạo Settings Manager
+        # Initialize Settings Manager
         self.settings_manager = SettingsManager("settings.json")
 
-        # Khởi tạo Data Manager và tải dữ liệu từ file JSON
+        # Initialize Data Manager and load data from JSON file
         self.data_manager = DataManager("bookmarks.json")
         self.db = self.data_manager.load_data()
         
@@ -30,7 +30,6 @@ class MainWindow(QMainWindow):
         self.init_ui()
         self.load_collections()
         
-      
         self.tray_manager = TrayManager(self)
         self.tray_manager.show()
         
@@ -39,7 +38,7 @@ class MainWindow(QMainWindow):
         self.hotkey_manager.setup_hotkeys()
 
     def save_current_state(self):
-        """Hàm tiện ích: Gọi hàm này mỗi khi có thay đổi dữ liệu để lưu vào file."""
+        """Utility function: Call this whenever data changes to save to file."""
         self.data_manager.save_data(self.db)
 
     def closeEvent(self, event):
@@ -49,8 +48,8 @@ class MainWindow(QMainWindow):
             event.ignore()
             self.hide()
             self.tray_manager.showMessage(
-                "Đang chạy ngầm",
-                "Ứng dụng đã thu nhỏ xuống khay hệ thống. Bấm vào icon để mở lại.",
+                "Running in background",
+                "The application has been minimized to the system tray. Click the icon to open it again.",
                 QSystemTrayIcon.Information,
                 2000
             )
@@ -100,20 +99,20 @@ class MainWindow(QMainWindow):
         content_layout = QVBoxLayout(self.main_content)
 
         top_bar = QHBoxLayout()
-        self.btn_menu = QPushButton("☰ Menu")
+        self.btn_menu = QPushButton("☰")
         self.btn_menu.clicked.connect(self.toggle_menu)
         
-        self.lbl_title = QLabel("Chọn một Collection...")
+        self.lbl_title = QLabel("")
         self.lbl_title.setStyleSheet("color: white; font-size: 20px; font-weight: bold;")
+        self.lbl_title.setAlignment(Qt.AlignCenter)
         
-        self.btn_add = QPushButton("+ Thêm Note")
+        self.btn_add = QPushButton("+")
         self.btn_add.setObjectName("btn_add")
         self.btn_add.clicked.connect(self.add_note)
         self.btn_add.hide()
 
         top_bar.addWidget(self.btn_menu)
-        top_bar.addWidget(self.lbl_title)
-        top_bar.addStretch()
+        top_bar.addWidget(self.lbl_title, 1)
         top_bar.addWidget(self.btn_add)
 
         self.scroll_area = QScrollArea()
@@ -123,8 +122,15 @@ class MainWindow(QMainWindow):
         self.notes_layout = QVBoxLayout(self.scroll_content)
         self.notes_layout.setAlignment(Qt.AlignTop)
         self.scroll_area.setWidget(self.scroll_content)
+        self.scroll_area.hide()
+
+        # Label to display in the center when no Collection is selected
+        self.lbl_empty = QLabel("Select a Collection...")
+        self.lbl_empty.setAlignment(Qt.AlignCenter)
+        self.lbl_empty.setStyleSheet("color: #888888; font-size: 18px; font-style: italic;")
 
         content_layout.addLayout(top_bar)
+        content_layout.addWidget(self.lbl_empty, 1)
         content_layout.addWidget(self.scroll_area)
 
         self.splitter.addWidget(self.sidebar)
@@ -137,7 +143,7 @@ class MainWindow(QMainWindow):
         self.animation.setEasingCurve(QEasingCurve.InOutQuart)
         self.animation.finished.connect(self.on_menu_animation_finished)
 
-    # --- LOGIC CHO SIDEBAR / MENU ---
+    # --- SIDEBAR / MENU LOGIC ---
     def toggle_menu(self):
         start_val = self.sidebar.width()
         if start_val > 0:
@@ -162,19 +168,21 @@ class MainWindow(QMainWindow):
         self.current_collection = item.text()
         self.lbl_title.setText(self.current_collection)
         self.btn_add.show()
+        self.lbl_empty.hide()
+        self.scroll_area.show()
         self.render_notes()
         
         self.settings_manager.add_recent_collection(self.current_collection)
 
     def add_collection(self):
-        text, ok = QInputDialog.getText(self, "Thêm Collection", "Nhập tên Collection mới:")
+        text, ok = QInputDialog.getText(self, "Add Collection", "Enter new Collection name:")
         if ok and text:
             text = text.strip()
             if text in self.db:
-                QMessageBox.warning(self, "Lỗi", "Tên Collection đã tồn tại!")
+                QMessageBox.warning(self, "Error", "Collection name already exists!")
                 return
             self.db[text] = []
-            self.save_current_state() # LƯU DATA
+            self.save_current_state() # SAVE DATA
             self.load_collections()
 
     def show_collection_context_menu(self, pos):
@@ -184,9 +192,9 @@ class MainWindow(QMainWindow):
         menu = QMenu(self)
         menu.setStyleSheet("QMenu { background-color: #252525; color: #e0e0e0; border: none; border-radius: 5px; padding: 4px; } QMenu::item { padding: 6px 20px; border-radius: 4px; } QMenu::item:selected { background-color: #444444; color: white; }")
         
-        rename_action = QAction("Đổi tên", self)
-        delete_action = QAction("Xóa", self)
-        hotkey_action = QAction("Cài đặt phím tắt...", self)
+        rename_action = QAction("Rename", self)
+        delete_action = QAction("Delete", self)
+        hotkey_action = QAction("Set Hotkey...", self)
         
         menu.addAction(rename_action)
         menu.addAction(delete_action)
@@ -204,12 +212,12 @@ class MainWindow(QMainWindow):
 
     def rename_collection(self, item):
         old_name = item.text()
-        new_name, ok = QInputDialog.getText(self, "Đổi tên Collection", "Tên mới:", text=old_name)
+        new_name, ok = QInputDialog.getText(self, "Rename Collection", "New name:", text=old_name)
         if ok and new_name:
             new_name = new_name.strip()
             if new_name == old_name: return
             if new_name in self.db:
-                QMessageBox.warning(self, "Lỗi", "Tên Collection đã tồn tại!")
+                QMessageBox.warning(self, "Error", "Collection name already exists!")
                 return
             
             self.db[new_name] = self.db.pop(old_name)
@@ -228,20 +236,22 @@ class MainWindow(QMainWindow):
                 self.settings_manager.save_settings()
                 self.hotkey_manager.setup_hotkeys()
             
-            self.save_current_state() # LƯU DATA
+            self.save_current_state() # SAVE DATA
             self.load_collections()
 
     def delete_collection(self, item):
         col_name = item.text()
-        reply = QMessageBox.question(self, 'Xác nhận xóa', 
-                                     f'Bạn có chắc muốn xóa Collection "{col_name}"?', 
+        reply = QMessageBox.question(self, 'Confirm Deletion',
+                                     f'Are you sure you want to delete the Collection "{col_name}"?',
                                      QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         if reply == QMessageBox.Yes:
             del self.db[col_name]
             if self.current_collection == col_name:
                 self.current_collection = None
-                self.lbl_title.setText("Chọn một Collection...")
+                self.lbl_title.setText("")
                 self.btn_add.hide()
+                self.scroll_area.hide()
+                self.lbl_empty.show()
                 for i in reversed(range(self.notes_layout.count())): 
                     widget = self.notes_layout.itemAt(i).widget()
                     if widget: widget.deleteLater()
@@ -249,22 +259,22 @@ class MainWindow(QMainWindow):
             self.settings_manager.remove_collection_data(col_name)
             self.hotkey_manager.setup_hotkeys()
             
-            self.save_current_state() # LƯU DATA
+            self.save_current_state() # SAVE DATA
             self.load_collections()
 
     def set_collection_hotkey(self, item):
         col_name = item.text()
         current_hotkey = self.settings_manager.get_hotkeys().get(col_name, "")
-        text, ok = QInputDialog.getText(self, "Cài đặt phím tắt", 
-                                        f"Nhập phím tắt bôi đen lưu text cho '{col_name}'\n(VD: ctrl+shift+a, để trống để hủy):", 
+        text, ok = QInputDialog.getText(self, "Set Hotkey",
+                                        f"Enter hotkey to save selected text to '{col_name}'\n(e.g., ctrl+shift+a, leave empty to clear):",
                                         text=current_hotkey)
         if ok:
             self.settings_manager.set_hotkey(col_name, text.strip())
             self.hotkey_manager.setup_hotkeys()
             if text.strip():
-                QMessageBox.information(self, "Thành công", f"Đã cài phím tắt '{text.strip()}' cho {col_name}")
+                QMessageBox.information(self, "Success", f"Hotkey '{text.strip()}' set for {col_name}")
             else:
-                QMessageBox.information(self, "Thành công", f"Đã xóa phím tắt cho {col_name}")
+                QMessageBox.information(self, "Success", f"Hotkey for {col_name} has been removed")
 
     def add_note_from_hotkey(self, collection_name, selected_text):
         if not selected_text: return
@@ -272,16 +282,16 @@ class MainWindow(QMainWindow):
         note = selected_text
         if note.startswith("http://") or note.startswith("https://"):
             link = note
-            note = "Đã lưu từ phím tắt"
+            note = "Saved from hotkey"
             
         self.db[collection_name].append({"note": note, "link": link})
         self.save_current_state()
         if self.current_collection == collection_name:
             self.render_notes()
         self.settings_manager.add_recent_collection(collection_name)
-        self.tray_manager.showMessage("Đã thêm Note", f"Đã lưu nội dung bôi đen vào '{collection_name}'", QSystemTrayIcon.Information, 2000)
+        self.tray_manager.showMessage("Note Added", f"Saved selected content to '{collection_name}'", QSystemTrayIcon.Information, 2000)
 
-    # --- LOGIC CHO NOTES ---
+    # --- NOTES LOGIC ---
     def render_notes(self):
         for i in reversed(range(self.notes_layout.count())): 
             widget = self.notes_layout.itemAt(i).widget()

@@ -9,7 +9,7 @@ class TrayManager(QSystemTrayIcon):
         self.settings_manager = main_window.settings_manager
         self.is_quitting = False
         
-        # Sử dụng icon mặc định của hệ thống cho Tray Icon
+        # Use the system's default icon for the Tray Icon
         icon = QApplication.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon)
         self.setIcon(icon)
         self.setToolTip("Modern Bookmark App")
@@ -23,13 +23,13 @@ class TrayManager(QSystemTrayIcon):
     def build_menu(self):
         self.menu.clear()
         
-        show_action = QAction("Hiển thị ứng dụng", self.menu)
+        show_action = QAction("Show App", self.menu)
         show_action.triggered.connect(self.show_main_window)
         self.menu.addAction(show_action)
         
         self.menu.addSeparator()
         
-        add_col_action = QAction("Thêm Collection mới...", self.menu)
+        add_col_action = QAction("New Collection...", self.menu)
         add_col_action.triggered.connect(self.main_window.add_collection)
         self.menu.addAction(add_col_action)
         
@@ -39,12 +39,12 @@ class TrayManager(QSystemTrayIcon):
         if recent:
             for col in recent:
                 if col in self.main_window.db:
-                    action = QAction(f"Thêm Note vào '{col}'", self.menu)
+                    action = QAction(f"Add Note to '{col}'", self.menu)
                     action.triggered.connect(lambda checked=False, c=col: self.add_note_to_collection(c))
                     self.menu.addAction(action)
             self.menu.addSeparator()
         
-        quit_action = QAction("Thoát", self.menu)
+        quit_action = QAction("Quit", self.menu)
         quit_action.triggered.connect(self.quit_app)
         self.menu.addAction(quit_action)
 
