@@ -67,6 +67,7 @@ class NoteWidget(QFrame):
         self.click_timer = QTimer(self)
         self.click_timer.setSingleShot(True)
         self.click_timer.timeout.connect(self.execute_single_click)
+        self.index_in_db: int | None = None
         self.init_ui()
 
     def init_ui(self):
@@ -133,16 +134,16 @@ class NoteWidget(QFrame):
         self.lbl.setText(display_text)
 
         if self.link:
-            self.setCursor(Qt.PointingHandCursor)
+            self.setCursor(Qt.CursorShape.PointingHandCursor)
         else:
-            self.setCursor(Qt.ArrowCursor)
+            self.setCursor(Qt.CursorShape.ArrowCursor)
 
     def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton and self.link and not self.is_editing:
+        if event.button() == Qt.MouseButton.LeftButton and self.link and not self.is_editing:
             self.click_timer.start(250)
 
     def mouseDoubleClickEvent(self, event):
-        if event.button() == Qt.LeftButton:
+        if event.button() == Qt.MouseButton.LeftButton:
             self.click_timer.stop()
             self.start_edit()
 
@@ -157,7 +158,7 @@ class NoteWidget(QFrame):
         self.link_edit.setText(self.link)
         self.edit_widget.show()
         self.note_edit.setFocus()
-        self.setCursor(Qt.ArrowCursor)
+        self.setCursor(Qt.CursorShape.ArrowCursor)
 
     def save_inline(self):
         new_note = self.note_edit.text().strip()

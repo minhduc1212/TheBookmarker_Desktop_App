@@ -6,7 +6,7 @@ from PySide6.QtGui import QAction
 
 from src.styles import MODERN_STYLE
 from src.components import NoteWidget, NoteDialog
-from src.data_manager import DataManager # IMPORT FILE MỚI
+from src.data_manager import DataManager 
 from src.settings_manager import SettingsManager
 from src.tray_manager import TrayManager
 from src.hotkey_manager import HotkeyWorker
@@ -50,7 +50,7 @@ class MainWindow(QMainWindow):
             self.tray_manager.showMessage(
                 "Running in background",
                 "The application has been minimized to the system tray. Click the icon to open it again.",
-                QSystemTrayIcon.Information,
+                QSystemTrayIcon.MessageIcon.Information, # SỬA LỖI: Thêm .MessageIcon
                 2000
             )
 
@@ -61,7 +61,7 @@ class MainWindow(QMainWindow):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        self.splitter = QSplitter(Qt.Horizontal)
+        self.splitter = QSplitter(Qt.Orientation.Horizontal) # SỬA LỖI: Thêm .Orientation
         self.splitter.setHandleWidth(2)
         self.splitter.setStyleSheet("QSplitter::handle { background-color: #333333; }")
         main_layout.addWidget(self.splitter)
@@ -87,7 +87,7 @@ class MainWindow(QMainWindow):
         self.collection_list = QListWidget()
         self.collection_list.itemClicked.connect(self.on_collection_selected)
         
-        self.collection_list.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.collection_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu) # SỬA LỖI: Thêm .ContextMenuPolicy
         self.collection_list.customContextMenuRequested.connect(self.show_collection_context_menu)
         
         sidebar_layout.addLayout(sidebar_header)
@@ -104,7 +104,7 @@ class MainWindow(QMainWindow):
         
         self.lbl_title = QLabel("")
         self.lbl_title.setStyleSheet("color: white; font-size: 20px; font-weight: bold;")
-        self.lbl_title.setAlignment(Qt.AlignCenter)
+        self.lbl_title.setAlignment(Qt.AlignmentFlag.AlignCenter) # SỬA LỖI: Thêm .AlignmentFlag
         
         self.btn_add = QPushButton("+")
         self.btn_add.setObjectName("btn_add")
@@ -120,13 +120,13 @@ class MainWindow(QMainWindow):
         self.scroll_content = QWidget()
         self.scroll_content.setObjectName("scroll_content")
         self.notes_layout = QVBoxLayout(self.scroll_content)
-        self.notes_layout.setAlignment(Qt.AlignTop)
+        self.notes_layout.setAlignment(Qt.AlignmentFlag.AlignTop) # SỬA LỖI: Thêm .AlignmentFlag
         self.scroll_area.setWidget(self.scroll_content)
         self.scroll_area.hide()
 
         # Label to display in the center when no Collection is selected
         self.lbl_empty = QLabel("Select a Collection...")
-        self.lbl_empty.setAlignment(Qt.AlignCenter)
+        self.lbl_empty.setAlignment(Qt.AlignmentFlag.AlignCenter) # SỬA LỖI: Thêm .AlignmentFlag
         self.lbl_empty.setStyleSheet("color: #888888; font-size: 18px; font-style: italic;")
 
         content_layout.addLayout(top_bar)
@@ -140,8 +140,7 @@ class MainWindow(QMainWindow):
 
         self.animation = QPropertyAnimation(self.sidebar, b"maximumWidth")
         self.animation.setDuration(300)
-        self.animation.setEasingCurve(QEasingCurve.InOutQuart)
-        self.animation.finished.connect(self.on_menu_animation_finished)
+        self.animation.setEasingCurve(QEasingCurve.Type.InOutQuart) # SỬA LỖI: Thêm .Type
 
     # --- SIDEBAR / MENU LOGIC ---
     def toggle_menu(self):
@@ -162,7 +161,7 @@ class MainWindow(QMainWindow):
 
     def load_collections(self):
         self.collection_list.clear()
-        self.collection_list.addItems(self.db.keys())
+        self.collection_list.addItems(list(self.db.keys())) # SỬA LỖI: Ép kiểu dict_keys về list
 
     def on_collection_selected(self, item):
         self.current_collection = item.text()
@@ -182,7 +181,7 @@ class MainWindow(QMainWindow):
                 QMessageBox.warning(self, "Error", "Collection name already exists!")
                 return
             self.db[text] = []
-            self.save_current_state() # SAVE DATA
+            self.save_current_state()
             self.load_collections()
 
     def show_collection_context_menu(self, pos):
@@ -236,15 +235,16 @@ class MainWindow(QMainWindow):
                 self.settings_manager.save_settings()
                 self.hotkey_manager.setup_hotkeys()
             
-            self.save_current_state() # SAVE DATA
+            self.save_current_state()
             self.load_collections()
 
     def delete_collection(self, item):
         col_name = item.text()
         reply = QMessageBox.question(self, 'Confirm Deletion',
                                      f'Are you sure you want to delete the Collection "{col_name}"?',
-                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
-        if reply == QMessageBox.Yes:
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, # SỬA LỖI: Enum
+                                     QMessageBox.StandardButton.No)
+        if reply == QMessageBox.StandardButton.Yes: # SỬA LỖI: Enum
             del self.db[col_name]
             if self.current_collection == col_name:
                 self.current_collection = None
@@ -253,13 +253,15 @@ class MainWindow(QMainWindow):
                 self.scroll_area.hide()
                 self.lbl_empty.show()
                 for i in reversed(range(self.notes_layout.count())): 
-                    widget = self.notes_layout.itemAt(i).widget()
-                    if widget: widget.deleteLater()
+                    layout_item = self.notes_layout.itemAt(i)
+                    if layout_item is not None: # SỬA LỖI: Kiểm tra layout item khác None
+                        widget = layout_item.widget()
+                        if widget: widget.deleteLater()
             
             self.settings_manager.remove_collection_data(col_name)
             self.hotkey_manager.setup_hotkeys()
             
-            self.save_current_state() # SAVE DATA
+            self.save_current_state()
             self.load_collections()
 
     def set_collection_hotkey(self, item):
@@ -289,23 +291,28 @@ class MainWindow(QMainWindow):
         if self.current_collection == collection_name:
             self.render_notes()
         self.settings_manager.add_recent_collection(collection_name)
-        self.tray_manager.showMessage("Note Added", f"Saved selected content to '{collection_name}'", QSystemTrayIcon.Information, 2000)
+        self.tray_manager.showMessage("Note Added", f"Saved selected content to '{collection_name}'", 
+                                      QSystemTrayIcon.MessageIcon.Information, 2000) # SỬA LỖI: Enum
 
     # --- NOTES LOGIC ---
     def render_notes(self):
         for i in reversed(range(self.notes_layout.count())): 
-            widget = self.notes_layout.itemAt(i).widget()
-            if widget: widget.deleteLater()
+            layout_item = self.notes_layout.itemAt(i)
+            if layout_item is not None: # SỬA LỖI: Kiểm tra layout item khác None
+                widget = layout_item.widget()
+                if widget: widget.deleteLater()
 
         if self.current_collection and self.current_collection in self.db:
             for index, item in enumerate(self.db[self.current_collection]):
                 note_w = NoteWidget(item['note'], item['link'])
-                note_w.index_in_db = index
+                note_w.index_in_db = index 
                 note_w.deleted.connect(self.delete_note)
                 note_w.edited.connect(self.edit_note)
                 self.notes_layout.addWidget(note_w)
 
     def add_note(self):
+        if self.current_collection is None: return # SỬA LỖI: Chặn None dict key
+
         dialog = NoteDialog(self)
         if dialog.exec():
             note, link = dialog.get_data()
@@ -315,11 +322,15 @@ class MainWindow(QMainWindow):
                 self.render_notes()
 
     def delete_note(self, widget):
+        if self.current_collection is None: return # SỬA LỖI: Chặn None dict key
+        
         del self.db[self.current_collection][widget.index_in_db]
         self.save_current_state() 
         self.render_notes()
 
     def edit_note(self, widget, new_note, new_link):
+        if self.current_collection is None: return # SỬA LỖI: Chặn None dict key
+
         self.db[self.current_collection][widget.index_in_db] = {"note": new_note, "link": new_link}
         self.save_current_state() 
         self.render_notes()
