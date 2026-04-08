@@ -4,3 +4,5 @@ big note + stiky note
 
 using sqlite instead of json for data storage, as it provides better performance and scalability. Additionally, implementing a user authentication system to enhance security and allow for personalized user experiences. -> sync within the app, allowing users to access their notes across multiple devices seamlessly. Furthermore, incorporating a tagging system to help users organize and categorize their notes more efficiently. Lastly, adding a feature for note sharing, enabling users to collaborate and share their notes with others easily.
 add description of the note 
+
+sync wiht collection in yt, fb, ..
