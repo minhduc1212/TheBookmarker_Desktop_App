@@ -1,3 +1,6 @@
+description for collection and note
+    note: name, description, can add many links, choose the kind of note (text, image, video, audio, etc.)
+
 Auto track the title for url
 
 big note + stiky note
@@ -6,3 +9,7 @@ using sqlite instead of json for data storage, as it provides better performance
 add description of the note 
 
 sync wiht collection in yt, fb, ..
+add extensions, mobile, and desktop apps for better accessibility and user experience. T
+graph view for notes
+
+summary the web page and save it as a note, allowing users to quickly capture and organize information from the web. This feature would utilize natural language processing to extract key points and create a concise summary of the webpage content. Additionally, integrating with popular web browsers through extensions would enable users to save notes directly from their browsing experience, making it more convenient and efficient to capture important information on the go.
