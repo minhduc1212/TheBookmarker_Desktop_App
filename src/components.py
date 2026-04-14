@@ -8,39 +8,42 @@ class NoteDialog(QDialog):
     def __init__(self, parent=None, name="", description="", links=None):
         super().__init__(parent)
         self.setWindowTitle("Note Details")
-        self.setFixedSize(420, 320)
+        self.setFixedSize(460, 360)
         self.setStyleSheet("""
             QDialog {
-                background-color: #202020;
-                border: none;
+                background-color: #1f1f1f;
+                border: 1px solid #343434;
+                border-radius: 10px;
             }
             QLabel {
-                color: white;
+                color: #d8d8d8;
+                font-size: 13px;
+                font-weight: 600;
             }
             QLineEdit {
-                background-color: #333333;
-                border: none;
-                color: #e0e0e0;
-                border-radius: 5px;
-                padding: 8px;
+                background-color: #2a2a2a;
+                border: 1px solid #3a3a3a;
+                color: #eeeeee;
+                border-radius: 7px;
+                padding: 8px 10px;
             }
             QTextEdit {
-                background-color: #333333;
-                border: none;
-                color: #e0e0e0;
-                border-radius: 5px;
-                padding: 8px;
+                background-color: #2a2a2a;
+                border: 1px solid #3a3a3a;
+                color: #eeeeee;
+                border-radius: 7px;
+                padding: 8px 10px;
             }
             QPushButton {
-                background-color: #202020;
-                color: white;
+                background-color: #3d7dff;
+                color: #ffffff;
                 border: none;
-                border-radius: 6px;
-                padding: 8px 15px;
+                border-radius: 8px;
+                padding: 9px 16px;
                 font-weight: bold;
             }
             QPushButton:hover {
-                background-color: #333333;
+                background-color: #4d89ff;
             }
         """)
 
@@ -96,6 +99,7 @@ class NoteWidget(QFrame):
     def init_ui(self):
         self.main_layout = QVBoxLayout(self)
         self.main_layout.setContentsMargins(0, 0, 0, 0)
+        self.main_layout.setSpacing(0)
 
         # --- Display Mode ---
         self.display_widget = QWidget()
@@ -110,42 +114,78 @@ class NoteWidget(QFrame):
         # --- Edit Mode ---
         self.edit_widget = QWidget()
         self.edit_layout = QVBoxLayout(self.edit_widget)
-        self.edit_layout.setContentsMargins(10, 10, 10, 10)
-        self.edit_layout.setSpacing(5)
+        self.edit_layout.setContentsMargins(14, 12, 14, 12)
+        self.edit_layout.setSpacing(8)
+        self.edit_widget.setObjectName("edit_container")
+        self.edit_widget.setStyleSheet("""
+            QWidget {
+                background-color: #252525;
+                border: 1px solid #3c3c3c;
+                border-radius: 10px;
+            }
+            QLabel {
+                color: #bdbdbd;
+                font-size: 12px;
+                font-weight: 600;
+                border: none;
+                background: transparent;
+            }
+        """)
+      
+        line_edit_style = (
+            "QLineEdit { background-color: #1f1f1f; border: 1px solid #444444; color: #f0f0f0; "
+            "border-radius: 7px; padding: 7px 10px; }"
+        )
+        text_edit_style = (
+            "QTextEdit { background-color: #1f1f1f; border: 1px solid #444444; color: #f0f0f0; "
+            "border-radius: 7px; padding: 7px 10px; }"
+        )
 
-        line_edit_style = "QLineEdit { background-color: #333333; border: none; color: #e0e0e0; border-radius: 5px; padding: 6px; }"
-        text_edit_style = "QTextEdit { background-color: #333333; border: none; color: #e0e0e0; border-radius: 5px; padding: 6px; }"
-
+        self.lbl_name = QLabel("Name")
         self.name_edit = QLineEdit()
         self.name_edit.setPlaceholderText("Enter note name...")
         self.name_edit.setStyleSheet(line_edit_style)
 
+        self.lbl_description = QLabel("Description")
         self.description_edit = QTextEdit()
         self.description_edit.setPlaceholderText("Enter note description...")
         self.description_edit.setStyleSheet(text_edit_style)
-        self.description_edit.setFixedHeight(70)
+        self.description_edit.setFixedHeight(74)
 
+        self.lbl_links = QLabel("Links (one per line)")
         self.links_edit = QTextEdit()
         self.links_edit.setPlaceholderText("One link per line")
         self.links_edit.setStyleSheet(text_edit_style)
-        self.links_edit.setFixedHeight(80)
+        self.links_edit.setFixedHeight(90)
 
         btn_layout = QHBoxLayout()
-        btn_style = "QPushButton { background-color: #333333; color: white; border: none; border-radius: 4px; padding: 4px 12px; } QPushButton:hover { background-color: #444444; }"
+        btn_layout.setContentsMargins(0, 2, 0, 0)
+        btn_layout.setSpacing(8)
+        btn_save_style = (
+            "QPushButton { background-color: #3d7dff; color: white; border: none; border-radius: 6px; "
+            "padding: 6px 14px; font-weight: bold; } QPushButton:hover { background-color: #4d89ff; }"
+        )
+        btn_cancel_style = (
+            "QPushButton { background-color: #3a3a3a; color: #e6e6e6; border: none; border-radius: 6px; "
+            "padding: 6px 14px; } QPushButton:hover { background-color: #4a4a4a; }"
+        )
         self.btn_save = QPushButton("Save")
-        self.btn_save.setStyleSheet(btn_style)
+        self.btn_save.setStyleSheet(btn_save_style)
         self.btn_cancel = QPushButton("Cancel")
-        self.btn_cancel.setStyleSheet(btn_style)
+        self.btn_cancel.setStyleSheet(btn_cancel_style)
         
-        btn_layout.addWidget(self.btn_save)
-        btn_layout.addWidget(self.btn_cancel)
         btn_layout.addStretch()
+        btn_layout.addWidget(self.btn_cancel)
+        btn_layout.addWidget(self.btn_save)
 
         self.btn_save.clicked.connect(self.save_inline)
         self.btn_cancel.clicked.connect(self.cancel_inline)
 
+        self.edit_layout.addWidget(self.lbl_name)
         self.edit_layout.addWidget(self.name_edit)
+        self.edit_layout.addWidget(self.lbl_description)
         self.edit_layout.addWidget(self.description_edit)
+        self.edit_layout.addWidget(self.lbl_links)
         self.edit_layout.addWidget(self.links_edit)
         self.edit_layout.addLayout(btn_layout)
 
@@ -196,6 +236,8 @@ class NoteWidget(QFrame):
 
     def start_edit(self):
         self.is_editing = True
+        # Collapse height to 0 so the layout reclaims the space
+        self.display_widget.setMaximumHeight(0)
         self.display_widget.hide()
         self.name_edit.setText(self.note_name)
         self.description_edit.setText(self.note_description)
@@ -211,6 +253,8 @@ class NoteWidget(QFrame):
 
         self.is_editing = False
         self.edit_widget.hide()
+        # Restore the display widget's height before showing it
+        self.display_widget.setMaximumHeight(16777215)  # QWIDGETSIZE_MAX
         self.display_widget.show()
 
         if (
@@ -225,6 +269,8 @@ class NoteWidget(QFrame):
     def cancel_inline(self):
         self.is_editing = False
         self.edit_widget.hide()
+        # Restore the display widget's height before showing it
+        self.display_widget.setMaximumHeight(16777215)  # QWIDGETSIZE_MAX
         self.display_widget.show()
         self.update_display()
 
