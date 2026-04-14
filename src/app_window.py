@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, 
+from PySide6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
                                QFrame, QListWidget, QPushButton, QLabel, QScrollArea,
                                QInputDialog, QMessageBox, QMenu, QSystemTrayIcon, QSplitter)
 from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve
@@ -40,6 +40,37 @@ class MainWindow(QMainWindow):
     def save_current_state(self):
         """Utility function: Call this whenever data changes to save to file."""
         self.data_manager.save_data(self.db)
+
+    def get_collection_payload(self, collection_name):
+        payload = self.db.get(collection_name, {"description": "", "notes": []})
+        if isinstance(payload, list):
+            payload = {"description": "", "notes": payload}
+            self.db[collection_name] = payload
+        if not isinstance(payload, dict):
+            payload = {"description": "", "notes": []}
+            self.db[collection_name] = payload
+
+        notes = payload.get("notes", [])
+        if not isinstance(notes, list):
+            notes = []
+            payload["notes"] = notes
+        payload["description"] = str(payload.get("description", "")).strip()
+        return payload
+
+    def update_collection_description(self, item):
+        collection_name = item.text()
+        payload = self.get_collection_payload(collection_name)
+        new_description, ok = QInputDialog.getMultiLineText(
+            self,
+            "Collection Description",
+            f"Description for '{collection_name}':",
+            payload.get("description", "")
+        )
+        if ok:
+            payload["description"] = new_description.strip()
+            self.save_current_state()
+            if self.current_collection == collection_name:
+                self.lbl_collection_description.setText(payload["description"])
 
     def closeEvent(self, event):
         if hasattr(self, 'tray_manager') and self.tray_manager.is_quitting:
@@ -105,6 +136,11 @@ class MainWindow(QMainWindow):
         self.lbl_title = QLabel("")
         self.lbl_title.setStyleSheet("color: white; font-size: 20px; font-weight: bold;")
         self.lbl_title.setAlignment(Qt.AlignmentFlag.AlignCenter) # SỬA LỖI: Thêm .AlignmentFlag
+
+        self.lbl_collection_description = QLabel("")
+        self.lbl_collection_description.setStyleSheet("color: #9a9a9a; font-size: 12px;")
+        self.lbl_collection_description.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_collection_description.setWordWrap(True)
         
         self.btn_add = QPushButton("+")
         self.btn_add.setObjectName("btn_add")
@@ -130,6 +166,7 @@ class MainWindow(QMainWindow):
         self.lbl_empty.setStyleSheet("color: #888888; font-size: 18px; font-style: italic;")
 
         content_layout.addLayout(top_bar)
+        content_layout.addWidget(self.lbl_collection_description)
         content_layout.addWidget(self.lbl_empty, 1)
         content_layout.addWidget(self.scroll_area)
 
@@ -166,6 +203,8 @@ class MainWindow(QMainWindow):
     def on_collection_selected(self, item):
         self.current_collection = item.text()
         self.lbl_title.setText(self.current_collection)
+        payload = self.get_collection_payload(self.current_collection)
+        self.lbl_collection_description.setText(payload.get("description", ""))
         self.btn_add.show()
         self.lbl_empty.hide()
         self.scroll_area.show()
@@ -180,7 +219,14 @@ class MainWindow(QMainWindow):
             if text in self.db:
                 QMessageBox.warning(self, "Error", "Collection name already exists!")
                 return
-            self.db[text] = []
+            description, desc_ok = QInputDialog.getMultiLineText(
+                self,
+                "Collection Description",
+                f"Enter description for '{text}' (optional):"
+            )
+            if not desc_ok:
+                description = ""
+            self.db[text] = {"description": description.strip(), "notes": []}
             self.save_current_state()
             self.load_collections()
 
@@ -191,10 +237,12 @@ class MainWindow(QMainWindow):
         menu = QMenu(self)
         menu.setStyleSheet("QMenu { background-color: #252525; color: #e0e0e0; border: none; border-radius: 5px; padding: 4px; } QMenu::item { padding: 6px 20px; border-radius: 4px; } QMenu::item:selected { background-color: #444444; color: white; }")
         
+        edit_description_action = QAction("Edit Description", self)
         rename_action = QAction("Rename", self)
         delete_action = QAction("Delete", self)
         hotkey_action = QAction("Set Hotkey...", self)
         
+        menu.addAction(edit_description_action)
         menu.addAction(rename_action)
         menu.addAction(delete_action)
         menu.addSeparator()
@@ -202,7 +250,9 @@ class MainWindow(QMainWindow):
 
         action = menu.exec(self.collection_list.mapToGlobal(pos))
         
-        if action == rename_action:
+        if action == edit_description_action:
+            self.update_collection_description(item)
+        elif action == rename_action:
             self.rename_collection(item)
         elif action == delete_action:
             self.delete_collection(item)
@@ -249,6 +299,7 @@ class MainWindow(QMainWindow):
             if self.current_collection == col_name:
                 self.current_collection = None
                 self.lbl_title.setText("")
+                self.lbl_collection_description.setText("")
                 self.btn_add.hide()
                 self.scroll_area.hide()
                 self.lbl_empty.show()
@@ -280,13 +331,14 @@ class MainWindow(QMainWindow):
 
     def add_note_from_hotkey(self, collection_name, selected_text):
         if not selected_text: return
-        link = ""
-        note = selected_text
-        if note.startswith("http://") or note.startswith("https://"):
-            link = note
-            note = "Saved from hotkey"
-            
-        self.db[collection_name].append({"note": note, "link": link})
+        payload = self.get_collection_payload(collection_name)
+        links = []
+        note_name = selected_text
+        if note_name.startswith("http://") or note_name.startswith("https://"):
+            links = [note_name]
+            note_name = "Saved from hotkey"
+
+        payload["notes"].append({"name": note_name, "description": "", "links": links})
         self.save_current_state()
         if self.current_collection == collection_name:
             self.render_notes()
@@ -303,8 +355,10 @@ class MainWindow(QMainWindow):
                 if widget: widget.deleteLater()
 
         if self.current_collection and self.current_collection in self.db:
-            for index, item in enumerate(self.db[self.current_collection]):
-                note_w = NoteWidget(item['note'], item['link'])
+            payload = self.get_collection_payload(self.current_collection)
+            self.lbl_collection_description.setText(payload.get("description", ""))
+            for index, item in enumerate(payload["notes"]):
+                note_w = NoteWidget(item.get("name", ""), item.get("description", ""), item.get("links", []))
                 note_w.index_in_db = index 
                 note_w.deleted.connect(self.delete_note)
                 note_w.edited.connect(self.edit_note)
@@ -315,22 +369,29 @@ class MainWindow(QMainWindow):
 
         dialog = NoteDialog(self)
         if dialog.exec():
-            note, link = dialog.get_data()
-            if note or link:
-                self.db[self.current_collection].append({"note": note, "link": link})
+            name, description, links = dialog.get_data()
+            if name or description or links:
+                payload = self.get_collection_payload(self.current_collection)
+                payload["notes"].append({"name": name, "description": description, "links": links})
                 self.save_current_state() 
                 self.render_notes()
 
     def delete_note(self, widget):
         if self.current_collection is None: return # SỬA LỖI: Chặn None dict key
-        
-        del self.db[self.current_collection][widget.index_in_db]
+
+        payload = self.get_collection_payload(self.current_collection)
+        del payload["notes"][widget.index_in_db]
         self.save_current_state() 
         self.render_notes()
 
-    def edit_note(self, widget, new_note, new_link):
+    def edit_note(self, widget, new_name, new_description, new_links):
         if self.current_collection is None: return # SỬA LỖI: Chặn None dict key
 
-        self.db[self.current_collection][widget.index_in_db] = {"note": new_note, "link": new_link}
+        payload = self.get_collection_payload(self.current_collection)
+        payload["notes"][widget.index_in_db] = {
+            "name": new_name,
+            "description": new_description,
+            "links": new_links
+        }
         self.save_current_state() 
         self.render_notes()

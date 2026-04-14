@@ -1,14 +1,14 @@
 import webbrowser
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QMenu, QDialog, 
-                               QLineEdit, QPushButton, QFormLayout, QHBoxLayout, QFrame, QApplication)
+                               QLineEdit, QPushButton, QFormLayout, QHBoxLayout, QFrame, QApplication, QTextEdit)
 from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtGui import QCursor, QAction
 
 class NoteDialog(QDialog):
-    def __init__(self, parent=None, note_text="", link=""):
+    def __init__(self, parent=None, name="", description="", links=None):
         super().__init__(parent)
         self.setWindowTitle("Note Details")
-        self.setFixedSize(350, 170)
+        self.setFixedSize(420, 320)
         self.setStyleSheet("""
             QDialog {
                 background-color: #202020;
@@ -18,6 +18,13 @@ class NoteDialog(QDialog):
                 color: white;
             }
             QLineEdit {
+                background-color: #333333;
+                border: none;
+                color: #e0e0e0;
+                border-radius: 5px;
+                padding: 8px;
+            }
+            QTextEdit {
                 background-color: #333333;
                 border: none;
                 color: #e0e0e0;
@@ -36,33 +43,49 @@ class NoteDialog(QDialog):
                 background-color: #333333;
             }
         """)
-        
-        self.note_input = QLineEdit(note_text)
-        self.note_input.setPlaceholderText("Enter note content...")
-        self.link_input = QLineEdit(link)
-        self.link_input.setPlaceholderText("https://...")
+
+        if links is None:
+            links = []
+
+        self.name_input = QLineEdit(name)
+        self.name_input.setPlaceholderText("Enter note name...")
+
+        self.description_input = QTextEdit(description)
+        self.description_input.setPlaceholderText("Enter note description...")
+        self.description_input.setFixedHeight(80)
+
+        self.links_input = QTextEdit("\n".join(links))
+        self.links_input.setPlaceholderText("One link per line (https://...)")
+        self.links_input.setFixedHeight(100)
 
         btn_save = QPushButton("Save")
         btn_save.clicked.connect(self.accept)
 
         layout = QFormLayout(self)
-        layout.addRow("Content:", self.note_input)
-        layout.addRow("Link:", self.link_input)
+        layout.addRow("Name:", self.name_input)
+        layout.addRow("Description:", self.description_input)
+        layout.addRow("Links:", self.links_input)
         layout.addRow("", btn_save)
         layout.setSpacing(10)
 
     def get_data(self):
-        return self.note_input.text().strip(), self.link_input.text().strip()
+        links = [line.strip() for line in self.links_input.toPlainText().splitlines() if line.strip()]
+        return (
+            self.name_input.text().strip(),
+            self.description_input.toPlainText().strip(),
+            links
+        )
 
 class NoteWidget(QFrame):
     deleted = Signal(object) 
-    edited = Signal(object, str, str) 
+    edited = Signal(object, str, str, list) 
 
-    def __init__(self, note_text, link):
+    def __init__(self, note_name, note_description, links):
         super().__init__()
         self.setObjectName("note_widget")
-        self.note_text = note_text
-        self.link = link
+        self.note_name = note_name
+        self.note_description = note_description
+        self.links = links if isinstance(links, list) else []
         self.is_editing = False
         self.click_timer = QTimer(self)
         self.click_timer.setSingleShot(True)
@@ -90,14 +113,22 @@ class NoteWidget(QFrame):
         self.edit_layout.setContentsMargins(10, 10, 10, 10)
         self.edit_layout.setSpacing(5)
 
-        edit_style = "QLineEdit { background-color: #333333; border: none; color: #e0e0e0; border-radius: 5px; padding: 6px; }"
-        self.note_edit = QLineEdit()
-        self.note_edit.setPlaceholderText("Enter note content...")
-        self.note_edit.setStyleSheet(edit_style)
-        
-        self.link_edit = QLineEdit()
-        self.link_edit.setPlaceholderText("https://...")
-        self.link_edit.setStyleSheet(edit_style)
+        line_edit_style = "QLineEdit { background-color: #333333; border: none; color: #e0e0e0; border-radius: 5px; padding: 6px; }"
+        text_edit_style = "QTextEdit { background-color: #333333; border: none; color: #e0e0e0; border-radius: 5px; padding: 6px; }"
+
+        self.name_edit = QLineEdit()
+        self.name_edit.setPlaceholderText("Enter note name...")
+        self.name_edit.setStyleSheet(line_edit_style)
+
+        self.description_edit = QTextEdit()
+        self.description_edit.setPlaceholderText("Enter note description...")
+        self.description_edit.setStyleSheet(text_edit_style)
+        self.description_edit.setFixedHeight(70)
+
+        self.links_edit = QTextEdit()
+        self.links_edit.setPlaceholderText("One link per line")
+        self.links_edit.setStyleSheet(text_edit_style)
+        self.links_edit.setFixedHeight(80)
 
         btn_layout = QHBoxLayout()
         btn_style = "QPushButton { background-color: #333333; color: white; border: none; border-radius: 4px; padding: 4px 12px; } QPushButton:hover { background-color: #444444; }"
@@ -113,8 +144,9 @@ class NoteWidget(QFrame):
         self.btn_save.clicked.connect(self.save_inline)
         self.btn_cancel.clicked.connect(self.cancel_inline)
 
-        self.edit_layout.addWidget(self.note_edit)
-        self.edit_layout.addWidget(self.link_edit)
+        self.edit_layout.addWidget(self.name_edit)
+        self.edit_layout.addWidget(self.description_edit)
+        self.edit_layout.addWidget(self.links_edit)
         self.edit_layout.addLayout(btn_layout)
 
         self.edit_widget.hide()
@@ -125,52 +157,69 @@ class NoteWidget(QFrame):
         self.update_display()
 
     def update_display(self):
-        display_text = ""
-        if self.note_text and self.link: display_text = f"{self.note_text}"
-        elif self.note_text: display_text = f"{self.note_text}"
-        elif self.link: display_text = f"{self.link}"
-        else: display_text = "Empty Note"
+        if self.note_name:
+            display_text = self.note_name
+        elif self.note_description:
+            display_text = self.note_description
+        elif self.links:
+            display_text = self.links[0]
+        else:
+            display_text = "Empty Note"
+
+        if self.note_description and self.note_description != display_text:
+            display_text += f"\n{self.note_description}"
+
+        if self.links:
+            display_text += f"\n({len(self.links)} link{'s' if len(self.links) != 1 else ''})"
 
         self.lbl.setText(display_text)
 
-        if self.link:
+        if self.links:
             self.setCursor(Qt.CursorShape.PointingHandCursor)
         else:
             self.setCursor(Qt.CursorShape.ArrowCursor)
 
     def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton and self.link and not self.is_editing:
+        if event.button() == Qt.MouseButton.LeftButton and self.links and not self.is_editing:
             self.click_timer.start(250)
+        super().mousePressEvent(event)
 
     def mouseDoubleClickEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             self.click_timer.stop()
             self.start_edit()
+        super().mouseDoubleClickEvent(event)
 
     def execute_single_click(self):
-        if self.link and not self.is_editing:
-            webbrowser.open(self.link)
+        if self.links and not self.is_editing:
+            webbrowser.open(self.links[0])
 
     def start_edit(self):
         self.is_editing = True
         self.display_widget.hide()
-        self.note_edit.setText(self.note_text)
-        self.link_edit.setText(self.link)
+        self.name_edit.setText(self.note_name)
+        self.description_edit.setText(self.note_description)
+        self.links_edit.setText("\n".join(self.links))
         self.edit_widget.show()
-        self.note_edit.setFocus()
+        self.name_edit.setFocus()
         self.setCursor(Qt.CursorShape.ArrowCursor)
 
     def save_inline(self):
-        new_note = self.note_edit.text().strip()
-        new_link = self.link_edit.text().strip()
-        
+        new_name = self.name_edit.text().strip()
+        new_description = self.description_edit.toPlainText().strip()
+        new_links = [line.strip() for line in self.links_edit.toPlainText().splitlines() if line.strip()]
+
         self.is_editing = False
         self.edit_widget.hide()
         self.display_widget.show()
-        
-        if new_note != self.note_text or new_link != self.link:
-            self.edited.emit(self, new_note, new_link)
-            
+
+        if (
+            new_name != self.note_name
+            or new_description != self.note_description
+            or new_links != self.links
+        ):
+            self.edited.emit(self, new_name, new_description, new_links)
+
         self.update_display()
 
     def cancel_inline(self):
@@ -195,7 +244,14 @@ class NoteWidget(QFrame):
         action = menu.exec(self.mapToGlobal(event.pos()))
         
         if action == copy_action:
-            QApplication.clipboard().setText(self.note_text if self.note_text else self.link)
+            lines = []
+            if self.note_name:
+                lines.append(self.note_name)
+            if self.note_description:
+                lines.append(self.note_description)
+            if self.links:
+                lines.extend(self.links)
+            QApplication.clipboard().setText("\n".join(lines))
         elif action == edit_action:
             self.start_edit()
         elif action == delete_action:
