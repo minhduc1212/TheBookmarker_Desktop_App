@@ -16,17 +16,20 @@ class DataManager:
                         {
                             "name": "Create Collection",
                             "description": "Click the + button in the sidebar to create a new Collection.",
-                            "links": []
+                            "links": [],
+                            "type": "small"
                         },
                         {
                             "name": "Manage Collection",
                             "description": "Right-click on a Collection to edit description, rename, or delete.",
-                            "links": []
+                            "links": [],
+                            "type": "small"
                         },
                         {
                             "name": "Open Links",
                             "description": "Click on a note to open its first link in the browser.",
-                            "links": ["https://google.com"]
+                            "links": ["https://google.com"],
+                            "type": "small"
                         }
                     ]
                 }
@@ -83,9 +86,9 @@ class DataManager:
         return normalized
 
     def _normalize_note_item(self, note_item):
-        """Normalizes a note object to {name, description, links} schema."""
+        """Normalizes a note object to {name, description, links, type} schema."""
         if not isinstance(note_item, dict):
-            return {"name": "", "description": "", "links": []}
+            return {"name": "", "description": "", "links": [], "type": "small"}
 
         if "name" in note_item or "description" in note_item or "links" in note_item:
             links = note_item.get("links", [])
@@ -97,7 +100,8 @@ class DataManager:
             return {
                 "name": str(note_item.get("name", "")).strip(),
                 "description": str(note_item.get("description", "")).strip(),
-                "links": links
+                "links": links,
+                "type": note_item.get("type", "small")
             }
 
         legacy_note = str(note_item.get("note", "")).strip()
@@ -105,5 +109,6 @@ class DataManager:
         return {
             "name": legacy_note,
             "description": "",
-            "links": [legacy_link] if legacy_link else []
+            "links": [legacy_link] if legacy_link else [],
+            "type": "small"
         }

@@ -53,11 +53,15 @@ class NoteDialog(QDialog):
         self.name_input = QLineEdit(name)
         self.name_input.setPlaceholderText("Enter note name...")
 
-        self.description_input = QTextEdit(description)
+        self.description_input = QTextEdit()
+        self.description_input.setPlainText(description)
+        self.description_input.setAcceptRichText(False)
         self.description_input.setPlaceholderText("Enter note description...")
         self.description_input.setFixedHeight(80)
 
-        self.links_input = QTextEdit("\n".join(links))
+        self.links_input = QTextEdit()
+        self.links_input.setPlainText("\n".join(links))
+        self.links_input.setAcceptRichText(False)
         self.links_input.setPlaceholderText("One link per line (https://...)")
         self.links_input.setFixedHeight(100)
 
@@ -148,12 +152,14 @@ class NoteWidget(QFrame):
 
         self.lbl_description = QLabel("Description")
         self.description_edit = QTextEdit()
+        self.description_edit.setAcceptRichText(False)
         self.description_edit.setPlaceholderText("Enter note description...")
         self.description_edit.setStyleSheet(text_edit_style)
         self.description_edit.setFixedHeight(74)
 
         self.lbl_links = QLabel("Links (one per line)")
         self.links_edit = QTextEdit()
+        self.links_edit.setAcceptRichText(False)
         self.links_edit.setPlaceholderText("One link per line")
         self.links_edit.setStyleSheet(text_edit_style)
         self.links_edit.setFixedHeight(90)
@@ -240,8 +246,8 @@ class NoteWidget(QFrame):
         self.display_widget.setMaximumHeight(0)
         self.display_widget.hide()
         self.name_edit.setText(self.note_name)
-        self.description_edit.setText(self.note_description)
-        self.links_edit.setText("\n".join(self.links))
+        self.description_edit.setPlainText(self.note_description)
+        self.links_edit.setPlainText("\n".join(self.links))
         self.edit_widget.show()
         self.name_edit.setFocus()
         self.setCursor(Qt.CursorShape.ArrowCursor)

@@ -1,7 +1,8 @@
 from PySide6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
                                QFrame, QListWidget, QPushButton, QLabel, QScrollArea,
-                               QInputDialog, QMessageBox, QMenu, QSystemTrayIcon, QSplitter)
-from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve
+                               QInputDialog, QMessageBox, QMenu, QSystemTrayIcon, QSplitter,
+                               QDialog, QLineEdit, QTextEdit)
+from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve, Signal
 from PySide6.QtGui import QAction
 
 from src.styles import MODERN_STYLE
@@ -10,6 +11,117 @@ from src.data_manager import DataManager
 from src.settings_manager import SettingsManager
 from src.tray_manager import TrayManager
 from src.hotkey_manager import HotkeyWorker
+
+class BigNoteDialog(QDialog):
+    def __init__(self, parent=None, name="", content=""):
+        super().__init__(parent)
+        self.setWindowTitle("Big Note")
+        self.setMinimumSize(500, 400)
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #202020; 
+                color: white;
+            }
+            QScrollBar:vertical {
+                border: none;
+                background: #333333;
+                width: 10px;
+                margin: 0px;
+            }
+            QScrollBar::handle:vertical {
+                background: transparent;
+                min-height: 20px;
+                border-radius: 5px;
+            }
+            QScrollBar::handle:vertical:hover, QScrollBar::handle:vertical:pressed {
+                background: #555555;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+                background: none;
+            }
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+                background: none;
+            }
+        """)
+
+        layout = QVBoxLayout(self)
+
+        self.name_input = QLineEdit(name)
+        self.name_input.setPlaceholderText("Note Title...")
+        self.name_input.setStyleSheet("background-color: #333333; border: none; padding: 10px; border-radius: 5px; font-weight: bold; font-size: 14px;")
+        layout.addWidget(self.name_input)
+
+        self.content_input = QTextEdit()
+        self.content_input.setPlainText(content)
+        self.content_input.setAcceptRichText(False)
+        self.content_input.setPlaceholderText("Note Content...")
+        self.content_input.setStyleSheet("background-color: #333333; border: none; padding: 10px; border-radius: 5px; font-size: 13px;")
+        layout.addWidget(self.content_input)
+
+        btn_layout = QHBoxLayout()
+        btn_save = QPushButton("Save")
+        btn_save.setStyleSheet("background-color: #444444; border-radius: 5px; padding: 8px 15px; font-weight: bold;")
+        btn_save.clicked.connect(self.accept)
+        btn_cancel = QPushButton("Cancel")
+        btn_cancel.setStyleSheet("background-color: #444444; border-radius: 5px; padding: 8px 15px; font-weight: bold;")
+        btn_cancel.clicked.connect(self.reject)
+
+        btn_layout.addStretch()
+        btn_layout.addWidget(btn_save)
+        btn_layout.addWidget(btn_cancel)
+
+        layout.addLayout(btn_layout)
+
+    def get_data(self):
+        return self.name_input.text().strip(), self.content_input.toPlainText().strip()
+
+class BigNoteWidget(QFrame):
+    deleted = Signal(object)
+    edited = Signal(object, str, str, list)
+
+    def __init__(self, name, content):
+        super().__init__()
+        self.name = name
+        self.content = content
+        self.init_ui()
+
+    def init_ui(self):
+        self.setObjectName("note_widget")
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(15, 15, 15, 15)
+        
+        lbl_name = QLabel(f"{self.name}" if self.name else "Big Note")
+        lbl_name.setStyleSheet("color: white; font-weight: bold; font-size: 15px;")
+        layout.addWidget(lbl_name)
+        
+    def mouseDoubleClickEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            dialog = BigNoteDialog(self, self.name, self.content)
+            if dialog.exec():
+                new_name, new_content = dialog.get_data()
+                self.edited.emit(self, new_name, new_content, [])
+        super().mouseDoubleClickEvent(event)
+
+    def contextMenuEvent(self, event):
+        menu = QMenu(self)
+        menu.setStyleSheet("QMenu { background-color: #252525; color: #e0e0e0; border: none; border-radius: 5px; padding: 4px; } QMenu::item { padding: 6px 20px; border-radius: 4px; } QMenu::item:selected { background-color: #444444; color: white; }")
+        
+        edit_action = QAction("Edit Big Note", self)
+        delete_action = QAction("Delete", self)
+        
+        menu.addAction(edit_action)
+        menu.addAction(delete_action)
+        
+        action = menu.exec(event.globalPos())
+        if action == edit_action:
+            dialog = BigNoteDialog(self, self.name, self.content)
+            if dialog.exec():
+                new_name, new_content = dialog.get_data()
+                self.edited.emit(self, new_name, new_content, [])
+        elif action == delete_action:
+            self.deleted.emit(self)
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -338,7 +450,7 @@ class MainWindow(QMainWindow):
             links = [note_name]
             note_name = "Saved from hotkey"
 
-        payload["notes"].append({"name": note_name, "description": "", "links": links})
+        payload["notes"].append({"name": note_name, "description": "", "links": links, "type": "small"})
         self.save_current_state()
         if self.current_collection == collection_name:
             self.render_notes()
@@ -358,7 +470,10 @@ class MainWindow(QMainWindow):
             payload = self.get_collection_payload(self.current_collection)
             self.lbl_collection_description.setText(payload.get("description", ""))
             for index, item in enumerate(payload["notes"]):
-                note_w = NoteWidget(item.get("name", ""), item.get("description", ""), item.get("links", []))
+                if item.get("type") == "big":
+                    note_w = BigNoteWidget(item.get("name", ""), item.get("description", ""))
+                else:
+                    note_w = NoteWidget(item.get("name", ""), item.get("description", ""), item.get("links", []))
                 note_w.index_in_db = index 
                 note_w.deleted.connect(self.delete_note)
                 note_w.edited.connect(self.edit_note)
@@ -367,14 +482,32 @@ class MainWindow(QMainWindow):
     def add_note(self):
         if self.current_collection is None: return # SỬA LỖI: Chặn None dict key
 
-        dialog = NoteDialog(self)
-        if dialog.exec():
-            name, description, links = dialog.get_data()
-            if name or description or links:
-                payload = self.get_collection_payload(self.current_collection)
-                payload["notes"].append({"name": name, "description": description, "links": links})
-                self.save_current_state() 
-                self.render_notes()
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("Choose Note Type")
+        msg_box.setText("Which type of note do you want to add?")
+        btn_small = msg_box.addButton("Quick Note", QMessageBox.ButtonRole.ActionRole)
+        btn_big = msg_box.addButton("Big Note", QMessageBox.ButtonRole.ActionRole)
+        msg_box.addButton(QMessageBox.StandardButton.Cancel)
+        msg_box.exec()
+
+        if msg_box.clickedButton() == btn_small:
+            dialog = NoteDialog(self)
+            if dialog.exec():
+                name, description, links = dialog.get_data()
+                if name or description or links:
+                    payload = self.get_collection_payload(self.current_collection)
+                    payload["notes"].append({"name": name, "description": description, "links": links, "type": "small"})
+                    self.save_current_state() 
+                    self.render_notes()
+        elif msg_box.clickedButton() == btn_big:
+            dialog = BigNoteDialog(self)
+            if dialog.exec():
+                name, content = dialog.get_data()
+                if name or content:
+                    payload = self.get_collection_payload(self.current_collection)
+                    payload["notes"].append({"name": name, "description": content, "links": [], "type": "big"})
+                    self.save_current_state()
+                    self.render_notes()
 
     def delete_note(self, widget):
         if self.current_collection is None: return # SỬA LỖI: Chặn None dict key
@@ -388,10 +521,14 @@ class MainWindow(QMainWindow):
         if self.current_collection is None: return # SỬA LỖI: Chặn None dict key
 
         payload = self.get_collection_payload(self.current_collection)
+        existing_note = payload["notes"][widget.index_in_db]
+        note_type = existing_note.get("type", "small")
+
         payload["notes"][widget.index_in_db] = {
             "name": new_name,
             "description": new_description,
-            "links": new_links
+            "links": new_links,
+            "type": note_type
         }
         self.save_current_state() 
         self.render_notes()

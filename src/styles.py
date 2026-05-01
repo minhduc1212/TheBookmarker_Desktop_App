@@ -2,6 +2,51 @@ MODERN_STYLE = """
 /* Main background color */
 QMainWindow, #main_content, #sidebar { background-color: #202020; border: none; }
 
+/* ScrollBar Styling (Modern, no arrows) */
+QScrollBar:vertical {
+    border: none;
+    background: transparent;
+    width: 10px;
+    margin: 0px;
+}
+QScrollBar::handle:vertical {
+    background: transparent;
+    min-height: 30px;
+    border-radius: 5px;
+}
+QScrollBar::handle:vertical:hover, QScrollBar::handle:vertical:pressed {
+    background: #555555;
+}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0px;
+    background: none;
+}
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+    background: none;
+}
+
+QScrollBar:horizontal {
+    border: none;
+    background: transparent;
+    height: 10px;
+    margin: 0px;
+}
+QScrollBar::handle:horizontal {
+    background: transparent;
+    min-width: 30px;
+    border-radius: 5px;
+}
+QScrollBar::handle:horizontal:hover, QScrollBar::handle:horizontal:pressed {
+    background: #555555;
+}
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+    width: 0px;
+    background: none;
+}
+QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
+    background: none;
+}
+
 /* Sidebar */
 QListWidget { background-color: transparent; border: none; color: #e0e0e0; font-size: 14px; outline: none; }
 QListWidget::item { padding: 10px; border-radius: 5px; margin: 2px 10px; border: none; }

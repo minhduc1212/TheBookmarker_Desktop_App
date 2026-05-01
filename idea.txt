@@ -1,6 +1,10 @@
 description for collection and note
     note: name, description, can add many links, choose the kind of note (text, image, video, audio, etc.)
 
+trong phần quick add to collection: thêm lựa chọn: để người dùng tự chọn collection nào trong quick add, thay vì tự động thêm vào collection mới tạo hoặc để nguyên
+
+thêm  loat note chia theo từng dòng, 1 dòng 1 note
+
 Auto track the title for url
 
 big note + stiky note
